@@ -1,0 +1,2 @@
+class SolverError(RuntimeError):
+    pass
