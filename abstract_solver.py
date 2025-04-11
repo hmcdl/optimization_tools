@@ -74,18 +74,31 @@ class CachableSolver(LoggableSolver):
     def non_cached_calculation(self, calc_task: CachableObject, unique_id: str, res_type: str):
         raise NotImplementedError
 
-    def solve(self, calc_task: CachableObject, unique_id: str, res_type: str):
+    def solve(self, calc_task: CachableObject, unique_id: str, res_type: str | None):
         signature = calc_task.signature() 
         if signature in self.cache_map:
-            # self.logger.info("cached result")
-            return self.cache_map[signature][res_type]
+            result_map = self.cache_map[signature]
         else:
             calculations_result = self.non_cached_calculation(calc_task, unique_id, res_type)
             self.cache_map[signature] = calculations_result
-            if res_type is not None:
-                return calculations_result[res_type]
-            else:
-                return calculations_result
+            result_map = calculations_result
+        
+        if res_type is not None:
+            return result_map[res_type]
+        else:
+            return result_map
+
+
+
+        #     # self.logger.info("cached result")
+        #     return self.cache_map[signature][res_type]
+        # else:
+        #     calculations_result = self.non_cached_calculation(calc_task, unique_id, res_type)
+        #     self.cache_map[signature] = calculations_result
+        #     if res_type is not None:
+        #         return calculations_result[res_type]
+        #     else:
+        #         return calculations_result
 
 
 

@@ -11,7 +11,7 @@ class OptConditions():
         self.vars: dict = opt_vars # Это словарь типа {"h": {"min": 0.001, "max": 0.02}, }
         self.constraints: dict = function_constraints # Это словарь типа {"general_buckling": 1.0, }
         for opt_var in list(self.vars.keys()):
-            if self.vars[opt_var]["min"] == self.vars[opt_var]["max"]:
+            if isinstance(self.vars[opt_var], dict) and self.vars[opt_var]["min"] == self.vars[opt_var]["max"]:
                 self.vars.pop(opt_var)
 
 class OptimizationTaskResults():

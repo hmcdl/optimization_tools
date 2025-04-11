@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABCMeta
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 from multiprocessing.pool import ApplyResult
 import pickle
 import uuid
@@ -9,6 +9,14 @@ import pika
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer
 from . import opt_tools_settings
 
+def set_local_directions_and_run_single_optimization(optimizer: AbstractOPtimizer):
+    """
+    Для запуска через функции, требующие сериализации
+    """
+    optimizer.optimized_object.solver.set_working_dir(optimizer.optimized_object.unique_id)
+    optimizer.optimized_object.solver.initialize_log(optimizer.optimized_object.unique_id)
+    result = optimizer.run_optimization()
+    return result
 
 def run_single_optimization(optimizer: AbstractOPtimizer):
     result = optimizer.run_optimization()
@@ -81,10 +89,10 @@ class AbstractExecutor(metaclass=ABCMeta):
 
 class ForLoopExecutor(AbstractExecutor):
     def __init__(self) -> None:
-        pass
+        self.function = run_single_optimization
 
     def __call__(self, tasks):
-        return list(map(run_single_optimization, tasks))
+        return list(map(self.function, tasks))
     
 
 # https://stackoverflow.com/questions/19984152/what-can-multiprocessing-and-dill-do-together
@@ -92,21 +100,41 @@ class MultiprocessExecutor(AbstractExecutor):
     def __init__(self, pool) -> None:
         # self.num_proc = num_proc
         self.pool: ProcessingPool = pool
+        self.function = run_single_optimization
         
     def __call__(self, tasks):
         future_results: list[ApplyResult] = []
         for task in tasks:
-            future_result = self.pool.apipe(run_single_optimization, task)
+            future_result = self.pool.apipe(self.function, task)
             future_results.append(future_result)
         calculated = []
         for result in future_results:
             calculated.append(result.get())
+        return calculated
+
+
+class MultiprocessExecutorCF(AbstractExecutor):
+    def __init__(self, pool) -> None:
+        # self.num_proc = num_proc
+        self.pool: ProcessPoolExecutor = pool
+        self.function = run_single_optimization
+    
+    def __call__(self, tasks):
+        future_results: list[Future] = []
+        for task in tasks:
+            future_result = self.pool.submit(self.function, task)
+            future_results.append(future_result)
+        calculated = []
+        for result in future_results:
+            calculated.append(result.result())
+        return calculated
 
 
 
 class RabbitExecutor(AbstractExecutor):
     def __init__(self, pool) -> None:
         self.pool: ThreadPoolExecutor = pool
+        self.function = run_single_optimization
 
     def __call__(self, tasks: list[AbstractOPtimizer]):
         future_results: list[Future] = []

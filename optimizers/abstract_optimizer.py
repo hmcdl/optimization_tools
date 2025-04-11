@@ -142,7 +142,7 @@ class AbstractOPtimizer():
             constraint_object.logger = logging.getLogger(self.optimized_object.local_log_path + "solver_log")
  
         
-    def run_optimization(self, **kwargs):
+    def run_optimization(self, **kwargs) -> OptimizationTaskResults:
         try:
             self.logger = logging.getLogger(self.optimized_object.unique_id)
             self.logger.setLevel(logging.DEBUG)
@@ -160,7 +160,7 @@ class AbstractOPtimizer():
                     constraint_object: Constraint = constraint["fun"]
                     constraint_object.logger = logging.getLogger(self.optimized_object.local_log_path + "solver_log")
             
-            return self.optimize()
+            return self.optimize(**kwargs)
         finally:
             self.logger.debug("LOG FINISH")
             if self.filehandler:

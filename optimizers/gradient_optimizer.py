@@ -73,14 +73,21 @@ class GradientOptimizer(AbstractOPtimizer):
     """
     Градиентный оптимизатор.
     """
-    def __init__(self, optimized_object: OptimizationTaskWithNormalization):
+    def __init__(self, optimized_object: OptimizationTaskWithNormalization, first_approx_function=None):
         super().__init__(optimized_object=optimized_object)
+        self.first_approx_function = first_approx_function
 
 
     def optimize(self, **kwargs) -> OptimizationTaskResults:
         try:
             logger = self.logger
             logger.debug("Gradient optimization started")
+
+            if self.first_approx_function:
+                initial_results = self.optimized_object.solver.solve(self.optimized_object.model, self.optimized_object.unique_id, None)
+                self.first_approx_function(
+            results_map=initial_results, panel=self.optimized_object.model, opt_conditions=self.optimized_object.opt_conditions, logger=self.logger)
+
             x0 = self.optimized_object.get_x()
             x0_normalized = [x0[i]*self.optimized_object.normalization_coefficients[i]
                               for i in range(len(self.optimized_object.lower_bounds))]
