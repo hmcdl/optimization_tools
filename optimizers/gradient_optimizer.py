@@ -141,7 +141,7 @@ class GradientOptimizer(AbstractOPtimizer):
             return OptimizationTaskResults(
                 1, 1, None, None, None, self.optimized_object.model)
         finally:
-            logger.debug("LOG FINISH")
+            logger.info("LOG FINISH")
             if self.filehandler:
                 self.filehandler.close()
             self.optimized_object.solver.free_up_log_file()

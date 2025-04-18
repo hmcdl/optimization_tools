@@ -17,9 +17,9 @@ class NullOptimizer(AbstractOPtimizer):
     def optimize(self, **kwargs) -> OptimizationTaskResults:
         try:
             logger = self.logger
-            logger.log(logging.DEBUG, "null optimizer operation")
+            logger.info("null optimizer operation")
             x0 = self.optimized_object.get_x()
-            logger.log(logging.DEBUG, "LOG FINISH")
+            logger.info("LOG FINISH")
             mass = self.optimized_object.solver.solve(calc_task=self.optimized_object.model,
                                                     unique_id=self.optimized_object.unique_id, res_type="mass")
                 

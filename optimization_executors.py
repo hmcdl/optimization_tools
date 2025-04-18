@@ -66,14 +66,6 @@ class panel_optimization_client(object):
         return self.response
 
 def run_single_optimization_on_cluster(optimizer: AbstractOPtimizer):
-            # logfile_path = os.path.join(opt_tools_settings.LOGGING_DIR, task.unique_id + "optimization_process_log.log")
-            # try:
-            #     log_listening_process = multiprocessing.Process(target=log_listener.main, args=(task.unique_id, logfile_path))
-            #     log_listening_process.start()
-            # except:
-            #     print("failed to start log listening process")
-            
-
             client = panel_optimization_client()
             task_byte_view = pickle.dumps(optimizer, pickle.HIGHEST_PROTOCOL)
             response = client.call(task_byte_view)

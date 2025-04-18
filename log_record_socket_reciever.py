@@ -1,3 +1,9 @@
+"""
+Модуль для получения логов при выполнении расчетов на удаленном сервере
+!!!Для высвобождения ресурсов (закрытия соединения) при завершении логиования
+сигналом является сообщение 'LOG FINISH'
+"""
+
 import os
 import pickle
 import logging
@@ -5,7 +11,7 @@ import logging.handlers
 import socketserver
 import struct
 
-from . import opt_tools_settings
+from optimization_tools.opt_tools_settings import LOGGING_DIR
 
 
 class LogRecordStreamHandler(socketserver.StreamRequestHandler):
@@ -49,7 +55,7 @@ class LogRecordStreamHandler(socketserver.StreamRequestHandler):
         if len(logger.handlers) == 0:
             local_path_elements = name.split("__")
             local_path = "/".join(local_path_elements)
-            full_path = os.path.join(opt_tools_settings.LOGGING_DIR, local_path)
+            full_path = os.path.join(LOGGING_DIR, local_path)
             os.makedirs(full_path, exist_ok=True)
             filename = os.path.join(full_path, name)
             handler = logging.FileHandler(filename=filename)

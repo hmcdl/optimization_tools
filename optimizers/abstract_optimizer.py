@@ -162,7 +162,7 @@ class AbstractOPtimizer():
             
             return self.optimize(**kwargs)
         finally:
-            self.logger.debug("LOG FINISH")
+            self.logger.info("LOG FINISH")
             if self.filehandler:
                 self.filehandler.close()
             self.optimized_object.solver.free_up_log_file()
