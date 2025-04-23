@@ -1,7 +1,7 @@
 import os
 from os.path import join, dirname
 from dotenv import load_dotenv
-from mat_db import mat_db
+# from mat_db import mat_db
 
 load_dotenv()
 
@@ -26,7 +26,7 @@ if RABBIT == 1:
 else:
     RABBIT = False
 
-materials_database = mat_db.MatDB(MAT_DB_PATH)
+# materials_database = mat_db.MatDB(MAT_DB_PATH)
 
 RPC_Q_IP = os.environ.get("RPC_Q_IP")
 

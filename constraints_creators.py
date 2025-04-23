@@ -1,4 +1,5 @@
 import copy
+import logging
 from optimization_tools.optimizers.abstract_optimizer import AbstractOptimizationTask
 
 
@@ -9,7 +10,7 @@ class Constraint:
         self.parameter = parameter
         self.limit = limit
         self.logname = None
-        self.logger = None
+        self.logger = logging.getLogger()
             
     
     def __call__(self, x):

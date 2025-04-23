@@ -153,7 +153,8 @@ class AbstractOPtimizer():
                 for handler in kwargs["handlers"]:
                     self.logger.addHandler(handler)
             
-            if not self.optimized_object._inner_optimizer:
+            if not self.optimized_object._inner_optimizer and \
+                hasattr(self.optimized_object.solver, "set_working_dir"):
                 self.optimized_object.solver.set_working_dir(self.optimized_object.local_log_path)
                 self.optimized_object.solver.initialize_log(self.optimized_object.local_log_path)
                 for constraint in self.optimized_object.cons:
