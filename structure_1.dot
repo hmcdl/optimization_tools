@@ -1,0 +1,15 @@
+digraph "classes_optimization_tools" {
+rankdir=BT
+charset="utf-8"
+"optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" [color="black", fontcolor="black", label=<{OptimizationTask|model: AbstractModel<br ALIGN="LEFT"/>opt_conditions: OptConditions<br ALIGN="LEFT"/>solver : AbstractSolver \| LoggableSolver<br ALIGN="LEFT"/>unique_id : str<br ALIGN="LEFT"/> constraint_functions : List[Constraint]<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"optimization_tools.abstract_solver.AbstractSolver" [color="black", fontcolor="black", label=<{AbstractSolver|<I>solve</I>(calc_task: AbstractModel,  res_type: str)<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"Constraint" [color="black", fontcolor="black", label=<{Constraint|__call__()<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"optimization_tools.opt_conditions.OptConditions" [color="black", fontcolor="black", label=<{OptConditions|constraints : dict<br ALIGN="LEFT"/>vars : dict<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer" [color="black", fontcolor="black", label=<{AbstractOPtimizer|optimized_object: AbstractModel<br ALIGN="LEFT"/>execution_strategy: AbstractExecutor<br ALIGN="LEFT"/>|<I>optimize</I>(): OptimizationTaskResults<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"optimization_tools.abstract_object.AbstractModel" [color="black", fontcolor="black", label=<{AbstractModel|dump_to_json_file(f)<br ALIGN="LEFT"/>dump_to_str()<br ALIGN="LEFT"/>}>, shape="record", style="solid"];
+"optimization_tools.abstract_object.AbstractModel" -> "optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" [arrowhead="odiamond", arrowtail="none", fontcolor="green", label="model", style="solid"];
+"optimization_tools.abstract_solver.AbstractSolver" -> "optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" [arrowhead="odiamond", arrowtail="none", fontcolor="green", label="solver", style="solid"];
+"optimization_tools.opt_conditions.OptConditions" -> "optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" [arrowhead="odiamond", arrowtail="none", fontcolor="green", label="optimization_conditions", style="solid"];
+"optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" -> "optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer" [arrowhead="odiamond", arrowtail="none", fontcolor="green", label="optimized_object           ", style="solid"];
+"Constraint" -> "optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" [arrowhead="diamond", arrowtail="none", fontcolor="green", label="constraint\nfunctions", style="solid"];
+}

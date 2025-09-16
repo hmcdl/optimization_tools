@@ -1,0 +1,44 @@
+digraph "packages_optimization_tools" {
+rankdir=BT
+charset="utf-8"
+"optimization_tools" [color="black", label=<optimization_tools>, shape="box", style="solid"];
+"optimization_tools.abstract_object" [color="black", label=<optimization_tools.abstract_object>, shape="box", style="solid"];
+"optimization_tools.abstract_solver" [color="black", label=<optimization_tools.abstract_solver>, shape="box", style="solid"];
+"optimization_tools.constraints_creators" [color="black", label=<optimization_tools.constraints_creators>, shape="box", style="solid"];
+"optimization_tools.exceptions" [color="black", label=<optimization_tools.exceptions>, shape="box", style="solid"];
+"optimization_tools.log_record_socket_reciever" [color="black", label=<optimization_tools.log_record_socket_reciever>, shape="box", style="solid"];
+"optimization_tools.opt_conditions" [color="black", label=<optimization_tools.opt_conditions>, shape="box", style="solid"];
+"optimization_tools.opt_tools_settings" [color="black", label=<optimization_tools.opt_tools_settings>, shape="box", style="solid"];
+"optimization_tools.optimization_executors" [color="black", label=<optimization_tools.optimization_executors>, shape="box", style="solid"];
+"optimization_tools.optimizers" [color="black", label=<optimization_tools.optimizers>, shape="box", style="solid"];
+"optimization_tools.optimizers.abstract_optimizer" [color="black", label=<optimization_tools.optimizers.abstract_optimizer>, shape="box", style="solid"];
+"optimization_tools.optimizers.brute_force_optimizer" [color="black", label=<optimization_tools.optimizers.brute_force_optimizer>, shape="box", style="solid"];
+"optimization_tools.optimizers.gradient_optimizer" [color="black", label=<optimization_tools.optimizers.gradient_optimizer>, shape="box", style="solid"];
+"optimization_tools.optimizers.null_optimizer" [color="black", label=<optimization_tools.optimizers.null_optimizer>, shape="box", style="solid"];
+"optimization_tools.simple_optimization_task" [color="black", label=<optimization_tools.simple_optimization_task>, shape="box", style="solid"];
+"optimization_tools.utils" [color="black", label=<optimization_tools.utils>, shape="box", style="solid"];
+"optimization_tools.abstract_solver" -> "optimization_tools.abstract_object" [arrowhead="open", arrowtail="none"];
+"optimization_tools.constraints_creators" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.log_record_socket_reciever" -> "optimization_tools.opt_tools_settings" [arrowhead="open", arrowtail="none"];
+"optimization_tools.opt_conditions" -> "optimization_tools.abstract_object" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimization_executors" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.abstract_optimizer" -> "optimization_tools.abstract_solver" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.abstract_optimizer" -> "optimization_tools.opt_conditions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.brute_force_optimizer" -> "optimization_tools.opt_conditions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.brute_force_optimizer" -> "optimization_tools.optimization_executors" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.brute_force_optimizer" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.brute_force_optimizer" -> "optimization_tools.simple_optimization_task" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.brute_force_optimizer" -> "optimization_tools.utils" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.gradient_optimizer" -> "optimization_tools.abstract_solver" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.gradient_optimizer" -> "optimization_tools.constraints_creators" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.gradient_optimizer" -> "optimization_tools.exceptions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.gradient_optimizer" -> "optimization_tools.opt_conditions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.gradient_optimizer" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.null_optimizer" -> "optimization_tools.exceptions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.null_optimizer" -> "optimization_tools.opt_conditions" [arrowhead="open", arrowtail="none"];
+"optimization_tools.optimizers.null_optimizer" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.simple_optimization_task" -> "optimization_tools.abstract_solver" [arrowhead="open", arrowtail="none"];
+"optimization_tools.simple_optimization_task" -> "optimization_tools.constraints_creators" [arrowhead="open", arrowtail="none"];
+"optimization_tools.simple_optimization_task" -> "optimization_tools.optimizers.abstract_optimizer" [arrowhead="open", arrowtail="none"];
+"optimization_tools.simple_optimization_task" -> "optimization_tools.optimizers.null_optimizer" [arrowhead="open", arrowtail="none"];
+}

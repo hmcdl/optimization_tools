@@ -14,7 +14,7 @@ class Constraint:
             
     
     def __call__(self, x):
-        logger = self.logger
+        logger = logging.getLogger(self.opt_task_object.local_log_path + "solver_log")
         cur_values_map = {}
         for i,val in enumerate(x):
             cur_values_map[self.opt_task_object.conversion_map[i]] = val

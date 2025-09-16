@@ -95,6 +95,7 @@ class MultiprocessExecutor(AbstractExecutor):
         self.function = run_single_optimization
         
     def __call__(self, tasks):
+        print(f"MultiprocessExecutor with id {id(self)}")
         future_results: list[ApplyResult] = []
         for task in tasks:
             future_result = self.pool.apipe(self.function, task)
@@ -121,7 +122,22 @@ class MultiprocessExecutorCF(AbstractExecutor):
             calculated.append(result.result())
         return calculated
 
-
+class ThreadExecutor(AbstractExecutor):
+    def __init__(self, pool: ThreadPoolExecutor) -> None:
+        # self.num_proc = num_proc
+        self.pool: ThreadPoolExecutor = pool
+        self.function = run_single_optimization
+    
+    def __call__(self, tasks):
+        print(f"ThreadExecutor with id {id(self)}")
+        future_results: list[Future] = []
+        for task in tasks:
+            future_result = self.pool.submit(self.function, task)
+            future_results.append(future_result)
+        calculated = []
+        for result in future_results:
+            calculated.append(result.result())
+        return calculated
 
 class RabbitExecutor(AbstractExecutor):
     def __init__(self, pool) -> None:

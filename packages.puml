@@ -1,0 +1,59 @@
+@startuml packages
+set namespaceSeparator none
+package "optimization_tools" as optimization_tools {
+}
+package "optimization_tools.abstract_object" as optimization_tools.abstract_object {
+}
+package "optimization_tools.abstract_solver" as optimization_tools.abstract_solver {
+}
+package "optimization_tools.constraints_creators" as optimization_tools.constraints_creators {
+}
+package "optimization_tools.exceptions" as optimization_tools.exceptions {
+}
+package "optimization_tools.log_record_socket_reciever" as optimization_tools.log_record_socket_reciever {
+}
+package "optimization_tools.opt_conditions" as optimization_tools.opt_conditions {
+}
+package "optimization_tools.opt_tools_settings" as optimization_tools.opt_tools_settings {
+}
+package "optimization_tools.optimization_executors" as optimization_tools.optimization_executors {
+}
+package "optimization_tools.optimizers" as optimization_tools.optimizers {
+}
+package "optimization_tools.optimizers.abstract_optimizer" as optimization_tools.optimizers.abstract_optimizer {
+}
+package "optimization_tools.optimizers.brute_force_optimizer" as optimization_tools.optimizers.brute_force_optimizer {
+}
+package "optimization_tools.optimizers.gradient_optimizer" as optimization_tools.optimizers.gradient_optimizer {
+}
+package "optimization_tools.optimizers.null_optimizer" as optimization_tools.optimizers.null_optimizer {
+}
+package "optimization_tools.simple_optimization_task" as optimization_tools.simple_optimization_task {
+}
+package "optimization_tools.utils" as optimization_tools.utils {
+}
+optimization_tools.abstract_solver --> optimization_tools.abstract_object
+optimization_tools.constraints_creators --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.log_record_socket_reciever --> optimization_tools.opt_tools_settings
+optimization_tools.opt_conditions --> optimization_tools.abstract_object
+optimization_tools.optimization_executors --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.optimizers.abstract_optimizer --> optimization_tools.abstract_solver
+optimization_tools.optimizers.abstract_optimizer --> optimization_tools.opt_conditions
+optimization_tools.optimizers.brute_force_optimizer --> optimization_tools.opt_conditions
+optimization_tools.optimizers.brute_force_optimizer --> optimization_tools.optimization_executors
+optimization_tools.optimizers.brute_force_optimizer --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.optimizers.brute_force_optimizer --> optimization_tools.simple_optimization_task
+optimization_tools.optimizers.brute_force_optimizer --> optimization_tools.utils
+optimization_tools.optimizers.gradient_optimizer --> optimization_tools.abstract_solver
+optimization_tools.optimizers.gradient_optimizer --> optimization_tools.constraints_creators
+optimization_tools.optimizers.gradient_optimizer --> optimization_tools.exceptions
+optimization_tools.optimizers.gradient_optimizer --> optimization_tools.opt_conditions
+optimization_tools.optimizers.gradient_optimizer --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.optimizers.null_optimizer --> optimization_tools.exceptions
+optimization_tools.optimizers.null_optimizer --> optimization_tools.opt_conditions
+optimization_tools.optimizers.null_optimizer --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.simple_optimization_task --> optimization_tools.abstract_solver
+optimization_tools.simple_optimization_task --> optimization_tools.constraints_creators
+optimization_tools.simple_optimization_task --> optimization_tools.optimizers.abstract_optimizer
+optimization_tools.simple_optimization_task --> optimization_tools.optimizers.null_optimizer
+@enduml

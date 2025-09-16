@@ -1,6 +1,9 @@
 from abc import abstractmethod
 import logging
 import os
+import random
+import threading
+import time
 
 from . import opt_tools_settings
 
@@ -13,7 +16,7 @@ class AbstractSolver():
         self.working_dir = None
 
     @abstractmethod
-    def solve(self, calc_task: AbstractObject, unique_id: str, res_type: str):
+    def solve(self, calc_task: AbstractObject, unique_id: str, res_type: str | None):
         raise NotImplementedError
     
     @abstractmethod
@@ -71,7 +74,7 @@ class CachableSolver(LoggableSolver):
         self.cache_map = {}
 
     @abstractmethod
-    def non_cached_calculation(self, calc_task: CachableObject, unique_id: str, res_type: str):
+    def non_cached_calculation(self, calc_task: CachableObject, unique_id: str):
         raise NotImplementedError
 
     def solve(self, calc_task: CachableObject, unique_id: str, res_type: str | None):
@@ -79,7 +82,7 @@ class CachableSolver(LoggableSolver):
         if signature in self.cache_map:
             result_map = self.cache_map[signature]
         else:
-            calculations_result = self.non_cached_calculation(calc_task, unique_id, res_type)
+            calculations_result = self.non_cached_calculation(calc_task, unique_id)
             self.cache_map[signature] = calculations_result
             result_map = calculations_result
         

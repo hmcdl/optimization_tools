@@ -1,0 +1,86 @@
+@startuml classes
+set namespaceSeparator none
+class "optimization_tools.abstract_object.AbstractJsonableObject" as optimization_tools.abstract_object.AbstractJsonableObject {
+}
+class "optimization_tools.abstract_object.AbstractObject" as optimization_tools.abstract_object.AbstractObject {
+}
+class "optimization_tools.abstract_object.CachableObject" as optimization_tools.abstract_object.CachableObject {
+}
+class "optimization_tools.abstract_solver.AbstractSolver" as optimization_tools.abstract_solver.AbstractSolver {
+}
+class "optimization_tools.abstract_solver.AbstractSolverFactory" as optimization_tools.abstract_solver.AbstractSolverFactory {
+}
+class "optimization_tools.abstract_solver.CachableSolver" as optimization_tools.abstract_solver.CachableSolver {
+}
+class "optimization_tools.abstract_solver.LoggableSolver" as optimization_tools.abstract_solver.LoggableSolver {
+}
+class "optimization_tools.abstract_solver.WorkingDirSolver" as optimization_tools.abstract_solver.WorkingDirSolver {
+}
+class "optimization_tools.constraints_creators.Constraint" as optimization_tools.constraints_creators.Constraint {
+}
+class "optimization_tools.constraints_creators.ConstraintForNormalized" as optimization_tools.constraints_creators.ConstraintForNormalized {
+}
+class "<color:red>optimization_tools.exceptions.SolverError</color>" as optimization_tools.exceptions.SolverError {
+}
+class "optimization_tools.log_record_socket_reciever.LogRecordSocketReceiver" as optimization_tools.log_record_socket_reciever.LogRecordSocketReceiver {
+}
+class "optimization_tools.log_record_socket_reciever.LogRecordStreamHandler" as optimization_tools.log_record_socket_reciever.LogRecordStreamHandler {
+}
+class "optimization_tools.opt_conditions.OptConditions" as optimization_tools.opt_conditions.OptConditions {
+}
+class "optimization_tools.opt_conditions.OptimizationTaskResults" as optimization_tools.opt_conditions.OptimizationTaskResults {
+}
+class "optimization_tools.optimization_executors.AbstractExecutor" as optimization_tools.optimization_executors.AbstractExecutor {
+}
+class "optimization_tools.optimization_executors.ForLoopExecutor" as optimization_tools.optimization_executors.ForLoopExecutor {
+}
+class "optimization_tools.optimization_executors.MultiprocessExecutor" as optimization_tools.optimization_executors.MultiprocessExecutor {
+}
+class "optimization_tools.optimization_executors.MultiprocessExecutorCF" as optimization_tools.optimization_executors.MultiprocessExecutorCF {
+}
+class "optimization_tools.optimization_executors.RabbitExecutor" as optimization_tools.optimization_executors.RabbitExecutor {
+}
+class "optimization_tools.optimization_executors.ThreadExecutor" as optimization_tools.optimization_executors.ThreadExecutor {
+}
+class "optimization_tools.optimization_executors.panel_optimization_client" as optimization_tools.optimization_executors.panel_optimization_client {
+}
+class "optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer" as optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer {
+}
+class "optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask" as optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask {
+}
+class "optimization_tools.optimizers.brute_force_optimizer.BruteForceOptimizer" as optimization_tools.optimizers.brute_force_optimizer.BruteForceOptimizer {
+}
+class "optimization_tools.optimizers.gradient_optimizer.GradientOptimizer" as optimization_tools.optimizers.gradient_optimizer.GradientOptimizer {
+}
+class "optimization_tools.optimizers.gradient_optimizer.OptimizationTaskWithNormalization" as optimization_tools.optimizers.gradient_optimizer.OptimizationTaskWithNormalization {
+}
+class "optimization_tools.optimizers.null_optimizer.NullOptimizer" as optimization_tools.optimizers.null_optimizer.NullOptimizer {
+}
+class "optimization_tools.simple_optimization_task.OptimizationTaskWithInnerOptimizer" as optimization_tools.simple_optimization_task.OptimizationTaskWithInnerOptimizer {
+}
+class "optimization_tools.utils.StreamToLogger" as optimization_tools.utils.StreamToLogger {
+}
+optimization_tools.abstract_object.AbstractJsonableObject --|> optimization_tools.abstract_object.AbstractObject
+optimization_tools.abstract_object.CachableObject --|> optimization_tools.abstract_object.AbstractObject
+optimization_tools.abstract_solver.CachableSolver --|> optimization_tools.abstract_solver.LoggableSolver
+optimization_tools.abstract_solver.LoggableSolver --|> optimization_tools.abstract_solver.WorkingDirSolver
+optimization_tools.abstract_solver.WorkingDirSolver --|> optimization_tools.abstract_solver.AbstractSolver
+optimization_tools.constraints_creators.ConstraintForNormalized --|> optimization_tools.constraints_creators.Constraint
+optimization_tools.optimization_executors.ForLoopExecutor --|> optimization_tools.optimization_executors.AbstractExecutor
+optimization_tools.optimization_executors.MultiprocessExecutor --|> optimization_tools.optimization_executors.AbstractExecutor
+optimization_tools.optimization_executors.MultiprocessExecutorCF --|> optimization_tools.optimization_executors.AbstractExecutor
+optimization_tools.optimization_executors.RabbitExecutor --|> optimization_tools.optimization_executors.AbstractExecutor
+optimization_tools.optimization_executors.ThreadExecutor --|> optimization_tools.optimization_executors.AbstractExecutor
+optimization_tools.optimizers.brute_force_optimizer.BruteForceOptimizer --|> optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer
+optimization_tools.optimizers.gradient_optimizer.GradientOptimizer --|> optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer
+optimization_tools.optimizers.gradient_optimizer.OptimizationTaskWithNormalization --|> optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask
+optimization_tools.optimizers.null_optimizer.NullOptimizer --|> optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer
+optimization_tools.simple_optimization_task.OptimizationTaskWithInnerOptimizer --|> optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask
+optimization_tools.optimization_executors.ForLoopExecutor --* optimization_tools.optimizers.brute_force_optimizer.BruteForceOptimizer : executor
+optimization_tools.optimizers.null_optimizer.NullOptimizer --* optimization_tools.simple_optimization_task.OptimizationTaskWithInnerOptimizer : _inner_optimizer
+optimization_tools.abstract_object.AbstractObject --o optimization_tools.opt_conditions.OptimizationTaskResults : model
+optimization_tools.opt_conditions.OptConditions --o optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask : opt_conditions
+optimization_tools.optimization_executors.AbstractExecutor --o optimization_tools.optimizers.brute_force_optimizer.BruteForceOptimizer : executor
+optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask --o optimization_tools.constraints_creators.Constraint : opt_task_object
+optimization_tools.optimizers.abstract_optimizer.AbstractOptimizationTask --o optimization_tools.optimizers.abstract_optimizer.AbstractOPtimizer : optimized_object
+@enduml

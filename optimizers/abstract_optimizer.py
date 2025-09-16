@@ -72,6 +72,13 @@ class AbstractOptimizationTask:
                 x.append(getattr(self._model, self.conversion_map[key]))
         return x
     
+    def get_vars_dict(self, x: list):
+        vars_dict = {}
+        conversion_map = self.get_conversion_map()
+        for i, _ in enumerate(x):
+            vars_dict[conversion_map[i]] = x[i]
+
+        return vars_dict
 
     def get_conversion_map(self):
         """
@@ -133,6 +140,7 @@ class AbstractOPtimizer():
         self.optimized_object = optimized_object
         self.logger = None
         self.filehandler = None
+        self.stream_handler_level = logging.CRITICAL
 
     def _set_up_logging_for_solver(self):
         self.optimized_object.solver.set_working_dir(self.optimized_object.local_log_path)
@@ -190,7 +198,7 @@ class AbstractOPtimizer():
             self.filehandler = filehandler
         if opt_tools_settings.STREAMHANDLER:
             streamhandler = logging.StreamHandler()
-            streamhandler.setLevel(logging.CRITICAL)
+            streamhandler.setLevel(self.stream_handler_level)
             streamhandler.setFormatter(formatter)
             handlers.append(streamhandler)
         return handlers

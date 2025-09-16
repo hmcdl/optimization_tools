@@ -1,9 +1,10 @@
+import ast
 import os
 from os.path import join, dirname
 from dotenv import load_dotenv
 # from mat_db import mat_db
 
-load_dotenv()
+# load_dotenv()
 
 CALCULATION_DIR = os.environ.get("CALCULATION_DIR")
 LAT_GEN_PATH = os.environ.get("LAT_GEN_PATH")
@@ -33,6 +34,8 @@ RPC_Q_IP = os.environ.get("RPC_Q_IP")
 RPC_Q_PORT = int(os.environ.get("RPC_Q_PORT"))
 
 LOGGING_DIR = os.environ.get("LOGGING_DIR")
+# disks_dirs = os.getenv("DIFF_DISK_DIRS")
+# DIFF_DISK_DIRS = ast.literal_eval(disks_dirs)
 
 FILEHANDLER = int(os.environ.get("FILEHANDLER"))
 if FILEHANDLER == 1:
