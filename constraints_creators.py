@@ -17,14 +17,14 @@ class Constraint:
         logger = logging.getLogger(self.opt_task_object.local_log_path + "solver_log")
         cur_values_map = {}
         for i,val in enumerate(x):
-            cur_values_map[self.opt_task_object.conversion_map[i]] = val
+            cur_values_map[self.opt_task_object.conversion_map[i]] = float(val)
         logger.info(cur_values_map)
         copy_model = copy.deepcopy(self.opt_task_object.model)
         self.opt_task_object.x_to_model(copy_model,
                                          x=x, conversion_map=self.opt_task_object.conversion_map)
         result =  self.opt_task_object.solver.solve(calc_task=copy_model,
                      unique_id=self.opt_task_object.unique_id, res_type=self.parameter)
-        logger.info(f"{self.parameter}: {result}")
+        logger.info(f"{self.parameter}: {float(result)}")
         if self.limit != 0:
             return result / self.limit - 1
         else:

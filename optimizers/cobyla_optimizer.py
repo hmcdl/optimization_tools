@@ -16,103 +16,12 @@ from optimization_tools.constraints_creators import ConstraintForNormalized
 from optimization_tools.exceptions import SolverError
 from optimization_tools.opt_conditions import OptimizationTaskResults
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, AbstractOptimizationTask
+from .gradient_optimizer import OptimizationTaskWithNormalization
 
 from ..opt_tools_settings import MAX_ITER
 
-class OptimizationTaskWithNormalization(AbstractOptimizationTask):
-    """
-    Оптимизационная задача с нормализацией переменных.
-    """
-    def __init__(self, initial_state, unique_id, opt_conditions, solver: AbstractSolver) -> None:
-        super().__init__(initial_state, unique_id, opt_conditions, solver)
-        self.lower_bounds = []
-        self.upper_bounds = []
-        self.cost_function_normalization = None
-        opt_vars_map = self.opt_conditions.vars
-        var_values_with_bounds = {}
-        for key in opt_vars_map:
-            var_values_with_bounds[key] = {"cur_val": getattr(self._model, key), "bounds": opt_vars_map[key]}
 
-        for i, _ in enumerate(var_values_with_bounds):
-            var = self.conversion_map[i]
-            self.lower_bounds.append(var_values_with_bounds[var]["bounds"]["min"])
-            self.upper_bounds.append(var_values_with_bounds[var]["bounds"]["max"])
-
-        # нормализация, чтобы все было в пределах -1...1
-        self.normalization_coefficients = [2/(self.lower_bounds[i] + self.upper_bounds[i]) 
-                                           for i in range(len(self.lower_bounds))]
-        self.denorm_coefficients = [0.5*(self.lower_bounds[i] + self.upper_bounds[i]) 
-                                    for i in range(len(self.lower_bounds))]
-        
-
-        self.cons = []
-        for constraint in self.opt_conditions.constraints:
-            self.cons.append({
-                    'type': 'ineq',
-                        'fun': ConstraintForNormalized(self,
-                            constraint,
-                            self.opt_conditions.constraints[constraint],
-                            self.denorm_coefficients)
-                })
-
-    def update_opt_vars(self):
-        self.lower_bounds = []
-        self.upper_bounds = []
-        opt_vars_map = self.opt_conditions.vars
-        var_values_with_bounds = {}
-        for key in opt_vars_map:
-            var_values_with_bounds[key] = {"cur_val": getattr(self._model, key), "bounds": opt_vars_map[key]}
-
-        for i, _ in enumerate(var_values_with_bounds):
-            var = self.conversion_map[i]
-            self.lower_bounds.append(var_values_with_bounds[var]["bounds"]["min"])
-            self.upper_bounds.append(var_values_with_bounds[var]["bounds"]["max"])
-
-        # нормализация, чтобы все было в пределах -1...1
-        self.normalization_coefficients = [2/(self.lower_bounds[i] + self.upper_bounds[i]) 
-                                           for i in range(len(self.lower_bounds))]
-        self.denorm_coefficients = [0.5*(self.lower_bounds[i] + self.upper_bounds[i]) 
-                                    for i in range(len(self.lower_bounds))]
-        
-
-        self.cons = []
-        for constraint in self.opt_conditions.constraints:
-            self.cons.append({
-                    'type': 'ineq',
-                        'fun': ConstraintForNormalized(self,
-                            constraint,
-                            self.opt_conditions.constraints[constraint],
-                            self.denorm_coefficients)
-                                            })
-
-
-    def get_vars_dict(self, x: list):
-        vars_dict = {}
-        conversion_map = self.get_conversion_map()
-        x_denorm = [x[i] * self.denorm_coefficients[i] for i in range(len(self.lower_bounds))]
-        for i, _ in enumerate(x_denorm):
-            vars_dict[conversion_map[i]] = x_denorm[i]
-
-        return vars_dict
-
-    def mass(self, x):
-        logger = logging.getLogger(self.local_log_path + "solver_log")
-        cur_values_map = {}
-        for i,val in enumerate(x):
-            cur_values_map[self.conversion_map[i]] = val
-        
-        x_denorm = [x[i] * self.denorm_coefficients[i] for i in range(len(self.lower_bounds))]
-        logger.info(x_denorm)
-        inner_model = copy.deepcopy(self.model)
-        self.x_to_model(inner_model, x_denorm, self.conversion_map)
-        result = self.solver.solve(inner_model, self.unique_id, "mass")
-        logger.info(f"mass: {result}")
-        return result / self.cost_function_normalization
-        
-
-
-
-class GradientOptimizer(AbstractOPtimizer):
+class COBYLAOptimizer(AbstractOPtimizer):
     """
     Градиентный оптимизатор.
     """
@@ -157,10 +66,16 @@ class GradientOptimizer(AbstractOPtimizer):
             sim_start_time = time.time()
             logger.info(json.dumps(self.optimized_object.opt_conditions.vars))
             logger.info(f"SLSQP started at {sim_start_time}")
-
-            res = minimize(self.optimized_object.mass, x0_normalized, method='SLSQP',
+            settings = {
+                'rhobeg': 0.2,
+                'rhoend': 0.02,
+                'catol': catol,
+                'maxiter': 200,
+                'disp': True
+            }
+            res = minimize(self.optimized_object.mass, x0_normalized, method='COBYLA',
                         jac='3-point', constraints= self.optimized_object.cons, bounds=bounds, 
-                        options={'maxiter': MAX_ITER, 'disp': True, "finite_diff_rel_step": 0.02}, callback=self.callback)
+                        options={'maxiter': MAX_ITER, 'disp': True}, callback=self.callback)
             
             logger.info(f"SLSQP finished at {sim_start_time} with status {res.status}")
             logger.info(f"SLSQP duration {time.time() - sim_start_time}")
@@ -189,7 +104,6 @@ class GradientOptimizer(AbstractOPtimizer):
             logger.info(json.dumps(final_constraints, indent=2))
             logger.info(f"mass = {str(mass)}")
             logger.info(json.dumps(self.history))
-            self.optimized_object.model.history = self.history
             results : OptimizationTaskResults = OptimizationTaskResults(
                 0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model)
 

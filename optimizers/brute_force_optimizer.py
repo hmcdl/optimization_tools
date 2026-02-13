@@ -35,9 +35,10 @@ class BruteForceOptimizer(AbstractOPtimizer):
 
 
     """
-    def __init__(self, optimized_object: OptimizationTaskWithInnerOptimizer, discreteness):
+    def __init__(self, optimized_object: OptimizationTaskWithInnerOptimizer, discreteness, seed_map: list = []):
         super().__init__(optimized_object)
         self.discreteness = discreteness
+        self.seed_map: dict = seed_map
         self.executor = ForLoopExecutor()
         self.all_points = None
         
@@ -74,29 +75,37 @@ class BruteForceOptimizer(AbstractOPtimizer):
         # [[0.8, 0.9, 1.0, 1.1, 1.2], [0.008, 0.009, 0.01, 0.011, 0.012]]
         # Порядок следования списков соответствует порядку в conversion_map
         bounds_for_gradient = []
-        for key, _ in self.optimized_object.conversion_map.items():
+        for key, opt_var_name in self.optimized_object.conversion_map.items():
             var_constraints = self.optimized_object.opt_conditions.vars[self.optimized_object.conversion_map[key]]
             if isinstance(var_constraints, list):
                 all_vars_ranges.append(var_constraints)
             else:
                 min_val = var_constraints["min"]
                 max_val = var_constraints["max"]
-                some_var_values = list(numpy.linspace(min_val, max_val, self.discreteness))
-                some_var_bounds = []
-                if len(some_var_values) > 1:
-                    some_var_bounds.append((some_var_values[0], (some_var_values[0] + some_var_values[1]) / 2))
+                if self.seed_map is None:
+                    some_var_values = list(numpy.linspace(min_val, max_val, self.discreteness))
                 else:
-                    some_var_bounds.append((min_val, max_val))
-                for i in range(1, len(some_var_values)- 1):
-                    some_var_bounds.append(((some_var_values[i-1] + some_var_values[i]) / 2,
-                                            (some_var_values[i] + some_var_values[i+1]) / 2))
-                if len(some_var_values) > 1:
-                    some_var_bounds.append((
-                        ((some_var_values[-2] + some_var_values[-1]) / 2),
-                                            some_var_values[-1])
-                    )
-                all_vars_ranges.append(numpy.linspace(min_val, max_val, self.discreteness))
-                bounds_for_gradient.append(some_var_bounds)
+                    if opt_var_name in self.seed_map.keys():
+                        some_var_values = list(numpy.linspace(min_val, max_val, self.seed_map[opt_var_name]))
+                if opt_var_name not in self.seed_map.keys():
+                    bounds_for_gradient.append([(min_val, max_val)])
+                    all_vars_ranges.append([getattr(self.optimized_object.model, opt_var_name)])
+                else:  
+                    some_var_bounds = []
+                    if len(some_var_values) > 1:
+                        some_var_bounds.append((some_var_values[0], (some_var_values[0] + some_var_values[1]) / 2 * 1.1))
+                    else:
+                        some_var_bounds.append((min_val, max_val))
+                    for i in range(1, len(some_var_values)- 1):
+                        some_var_bounds.append(((some_var_values[i-1] + some_var_values[i]) / 2 * 0.9,
+                                                (some_var_values[i] + some_var_values[i+1]) / 2* 1.1) )
+                    if len(some_var_values) > 1:
+                        some_var_bounds.append((
+                            ((some_var_values[-2] + some_var_values[-1]) / 2 * 0.9),
+                                                some_var_values[-1])
+                        )
+                    all_vars_ranges.append(numpy.linspace(min_val, max_val, self.seed_map[opt_var_name]))
+                    bounds_for_gradient.append(some_var_bounds)
 
 
         
@@ -121,7 +130,8 @@ class BruteForceOptimizer(AbstractOPtimizer):
             for j, opt_var in enumerate(optimizer.optimized_object.opt_conditions.vars.keys()):
                 if opt_var in self.optimized_object.opt_conditions.vars:
                     new_bounds_for_this_var = all_bounds[i][j]
-                    all_points[i][j] = (all_bounds[i][j][0] + all_bounds[i][j][1]) / 2
+                    if opt_var in self.seed_map.keys():
+                        all_points[i][j] = (all_bounds[i][j][0] + all_bounds[i][j][1]) / 2
                     optimizer.optimized_object.opt_conditions.vars[opt_var] = {"min":new_bounds_for_this_var[0], "max": new_bounds_for_this_var[1]}
             inner_model = copy.deepcopy(self.optimized_object.model)
             self.optimized_object.x_to_model(inner_model, all_points[i], self.optimized_object.conversion_map)
@@ -168,4 +178,5 @@ class BruteForceOptimizer(AbstractOPtimizer):
         logger.info("Margin values:")
         logger.info(json.dumps(min_mass_point.constr_values, indent=2))
         logger.info(f"mass = {str(min_mass_point.mass)}")
+        logger.info(json.dumps(min_mass_point.model.history))
         return min_mass_point
