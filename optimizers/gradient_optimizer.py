@@ -128,6 +128,7 @@ class GradientOptimizer(AbstractOPtimizer):
         self.optimized_object.x_to_model(model=model, x=vars_list, conversion_map=self.optimized_object.conversion_map)
         constraint_values = self.optimized_object.solver.solve(model, self.optimized_object.unique_id + "_callback", None)
         self.history.append({"vars" : vars_dict, "constraints": constraint_values})
+        self.optimized_object.history = self.history
 
 
     def optimize(self, **kwargs) -> OptimizationTaskResults:
@@ -189,10 +190,9 @@ class GradientOptimizer(AbstractOPtimizer):
             logger.info(json.dumps(final_constraints, indent=2))
             logger.info(f"mass = {str(mass)}")
             logger.info(json.dumps(self.history))
-            self.optimized_object.model.history = self.history
             results : OptimizationTaskResults = OptimizationTaskResults(
                 0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model)
-
+            results.history = self.history
             return results
         except SolverError:
             logger.critical("%s Optimization failed due to unhandled exception during optimization" %  self.optimized_object.unique_id)

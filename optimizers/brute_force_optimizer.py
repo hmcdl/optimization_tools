@@ -90,21 +90,51 @@ class BruteForceOptimizer(AbstractOPtimizer):
                 if opt_var_name not in self.seed_map.keys():
                     bounds_for_gradient.append([(min_val, max_val)])
                     all_vars_ranges.append([getattr(self.optimized_object.model, opt_var_name)])
-                else:  
+                else:
+                    overlap_ratio = 0.5
                     some_var_bounds = []
+                    # Если только одна точка, возвращаем отрезок нулевой длины
                     if len(some_var_values) > 1:
-                        some_var_bounds.append((some_var_values[0], (some_var_values[0] + some_var_values[1]) / 2 * 1.1))
+                    
+                        n = len(some_var_values)
+                        
+                        # Вычисляем шаг между точками
+                        step = some_var_values[1] - some_var_values[0]
+                        
+                        # Вычисляем длину перекрытия
+                        overlap = step * overlap_ratio
+                        
+                        # Создаем сегменты
+                        for i in range(n - 1):
+                            start = some_var_values[i] - overlap
+                            end = some_var_values[i + 1] + overlap
+                            
+                            # Для первого сегмента: начало остается исходным
+                            if i == 0 or start < some_var_values[i]:
+                                start = some_var_values[i]
+                            
+                            # Для последнего сегмента: конец остается исходным
+                            if i == n - 2 or end > some_var_values[-1]:
+                                end = some_var_values[-1]
+                            
+                            some_var_bounds.append([start, end])
                     else:
-                        some_var_bounds.append((min_val, max_val))
-                    for i in range(1, len(some_var_values)- 1):
-                        some_var_bounds.append(((some_var_values[i-1] + some_var_values[i]) / 2 * 0.9,
-                                                (some_var_values[i] + some_var_values[i+1]) / 2* 1.1) )
-                    if len(some_var_values) > 1:
-                        some_var_bounds.append((
-                            ((some_var_values[-2] + some_var_values[-1]) / 2 * 0.9),
-                                                some_var_values[-1])
-                        )
-                    all_vars_ranges.append(numpy.linspace(min_val, max_val, self.seed_map[opt_var_name]))
+                        some_var_bounds = [[some_var_values[0], some_var_values[0]]]
+                    
+                    
+                    # if len(some_var_values) > 1:
+                    #     some_var_bounds.append((some_var_values[0], (some_var_values[0] + some_var_values[1]) / 2 * 1.1))
+                    # else:
+                    #     some_var_bounds.append((min_val, max_val))
+                    # for i in range(1, len(some_var_values)- 1):
+                    #     some_var_bounds.append(((some_var_values[i-1] + some_var_values[i]) / 2 * 0.9,
+                    #                             (some_var_values[i] + some_var_values[i+1]) / 2* 1.1) )
+                    # if len(some_var_values) > 1:
+                    #     some_var_bounds.append((
+                    #         ((some_var_values[-2] + some_var_values[-1]) / 2 * 0.9),
+                    #                             some_var_values[-1])
+                    #     )
+                    all_vars_ranges.append(numpy.linspace(min_val, max_val, len(some_var_bounds)))
                     bounds_for_gradient.append(some_var_bounds)
 
 
@@ -178,5 +208,5 @@ class BruteForceOptimizer(AbstractOPtimizer):
         logger.info("Margin values:")
         logger.info(json.dumps(min_mass_point.constr_values, indent=2))
         logger.info(f"mass = {str(min_mass_point.mass)}")
-        logger.info(json.dumps(min_mass_point.model.history))
+        logger.info(f"history = {json.dumps(min_mass_point.history)}")
         return min_mass_point
