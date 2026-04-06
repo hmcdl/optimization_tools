@@ -2,9 +2,21 @@ import ast
 import os
 from os.path import join, dirname
 from dotenv import load_dotenv
-# from mat_db import mat_db
 
 # load_dotenv()
+
+# Глобальная переменная для переопределения пути логирования (теперь она необязательна)
+DEFAULT_LOGGING_DIR = os.environ.get("LOGGING_DIR")
+
+def get_logging_dir(custom_dir: str = None) -> str:
+    """
+    Получить директорию для логирования.
+    Если передан custom_dir, используется он.
+    Иначе возвращается значение из .env или None
+    """
+    if custom_dir is not None:
+        return custom_dir
+    return DEFAULT_LOGGING_DIR
 
 CALCULATION_DIR = os.environ.get("CALCULATION_DIR")
 LAT_GEN_PATH = os.environ.get("LAT_GEN_PATH")
@@ -27,15 +39,11 @@ if RABBIT == 1:
 else:
     RABBIT = False
 
-# materials_database = mat_db.MatDB(MAT_DB_PATH)
-
 RPC_Q_IP = os.environ.get("RPC_Q_IP")
-
 RPC_Q_PORT = int(os.environ.get("RPC_Q_PORT"))
 
-LOGGING_DIR = os.environ.get("LOGGING_DIR")
-# disks_dirs = os.getenv("DIFF_DISK_DIRS")
-# DIFF_DISK_DIRS = ast.literal_eval(disks_dirs)
+# Для обратной совместимости
+LOGGING_DIR = DEFAULT_LOGGING_DIR
 
 FILEHANDLER = int(os.environ.get("FILEHANDLER"))
 if FILEHANDLER == 1:

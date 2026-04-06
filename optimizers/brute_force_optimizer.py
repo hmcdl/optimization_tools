@@ -51,9 +51,10 @@ class BruteForceOptimizer(AbstractOPtimizer):
         logger = self.logger
         all_vars_ranges = []
         logger = logging.getLogger(self.optimized_object.unique_id)
-        global_log_dir = opt_tools_settings.LOGGING_DIR
+        # Используем директорию из объекта
+        global_log_dir = self.optimized_object.logging_dir
         this_log_dir = os.path.join(global_log_dir,
-                                      self.optimized_object.local_log_path)
+                                    self.optimized_object.local_log_path)
         
         os.makedirs(this_log_dir, exist_ok=True)
         this_log_file = os.path.join(this_log_dir, self.optimized_object.unique_id)
@@ -168,12 +169,14 @@ class BruteForceOptimizer(AbstractOPtimizer):
             optimizer.optimized_object.model = inner_model
             point_dict_str = ""
             for j, component_name in enumerate(self.optimized_object.conversion_map.values()):
-                point_dict_str += component_name + "=" + str(all_points[i][j])
+                point_dict_str += component_name + "=" + str(round(all_points[i][j], 3))
                 # .append(f"{key}={all_points[i][j]}")
+            optimizer.optimized_object.optimization_dir = self.optimized_object.optimization_dir
             optimizer.optimized_object.unique_id = self.optimized_object.unique_id + "__" + point_dict_str
             # optimizer.optimized_object.solver.
+            all_points_for_local_log_path = [round(point, 3) for point in all_points[i]]
             optimizer.optimized_object.local_log_path = self.optimized_object.local_log_path +\
-                  "/" + str(all_points[i])
+                  "/" + str(all_points_for_local_log_path)
         
         another_type_results = self.executor(inner_optimizers_copies)
 

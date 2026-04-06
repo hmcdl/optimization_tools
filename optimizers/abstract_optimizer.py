@@ -2,17 +2,14 @@ from abc import abstractmethod
 import logging
 import os
 
-
 from optimization_tools.abstract_solver import AbstractSolver, LoggableSolver
 from optimization_tools.opt_conditions import OptConditions, OptimizationTaskResults
+from optimization_tools import opt_tools_settings
 
 from typing import TYPE_CHECKING
 
-from .. import opt_tools_settings
-
 if TYPE_CHECKING:
     from constraints_creators import Constraint
-
 
 
 class AbstractOptimizationTask:
@@ -24,34 +21,36 @@ class AbstractOptimizationTask:
 
     initial_state - модель в начальном состоянии
 
-    unique_id - При создании экземпляра задается уникальный id  (может быть
+    unique_id - При создании экземпляра задается уникальный id (может быть
     переопределен в оптимизаторе, например в BruteForceOptimizer происходит
-    перебор различных мереметров и таска копируется с присвоением нового айдишника)
+    перебор различных параметров и таска копируется с присвоением нового айдишника)
 
     opt_conditions - Условия оптимизации (класс OptConditions)
 
     solver - экземпляр класса решателя для проведения единичного расчета
-
-    Методы:
-    get_conversion_map() - создание словаря, который ставит в соответсвие
-    порядковому номеру переменной ее название в модели.
     
-    get_x() - собирает переменные из класса модели в вектор
-
-    x_to_model(model, x, conversion_map) - передает значения вектора в 
-    экземпляр класса модели
+    optimization_dir - директория для сохранения логов и результатов оптимизации.
+                      Если None, используется значение из .env
     """
     
     def __init__(self, initial_state, unique_id, opt_conditions,
-                  solver: AbstractSolver | LoggableSolver) -> None:
+                  solver: AbstractSolver | LoggableSolver, 
+                  optimization_dir: str = None) -> None:
         self._model = initial_state
         self.unique_id: str = unique_id
         self.opt_conditions: OptConditions = opt_conditions
         self.solver = solver
         self.conversion_map = self.get_conversion_map()
-        self.local_log_path =  self.unique_id
+        self.local_log_path = self.unique_id
+        
+        # Сохраняем директорию оптимизации
+        self.optimization_dir = optimization_dir
         self._inner_optimizer = None
-        # self.solver.initialize_log(self.local_log_path)
+    
+    @property
+    def logging_dir(self) -> str:
+        """Получить актуальную директорию для логирования"""
+        return opt_tools_settings.get_logging_dir(self.optimization_dir)
     
     @property
     def model(self):
@@ -59,14 +58,11 @@ class AbstractOptimizationTask:
             raise ValueError
         return self._model
 
-
     @model.setter
     def model(self, model):
         self._model = model
 
-
     def get_x(self):
-        # model: AbstractObject = self.model
         x = []
         for key in self.conversion_map:
                 x.append(getattr(self._model, self.conversion_map[key]))
@@ -81,27 +77,8 @@ class AbstractOptimizationTask:
         return vars_dict
 
     def get_conversion_map(self):
-        """
-        Конвертирует переменные оптимизации из таски в список
-        и создает словарь для соответствия номера элемента в списке переменной
-        """
-        # model: AbstractObject = self.model
         opt_vars_map = self.opt_conditions.vars
         var_values_with_bounds = {}
-        # Создаем словарь вида 
-        # """
-        # {0:
-        #   {"var": 
-        #       {
-        #           "cur_val": 0.01,
-        #           "bounds": 
-        #               {
-        #                   "min": 0.001, "max": 0.02
-        #               }
-        #       }
-        #   },
-        #}#
-        # """
         for key in opt_vars_map:
             var_values_with_bounds[key] = {"cur_val": getattr(self._model, key), "bounds": opt_vars_map[key]}
         opt_var_counter = 0
@@ -123,18 +100,6 @@ class AbstractOPtimizer():
     optimized_object - Экземляр класса модели оптимизируемого объекта
     logger - логгер, вызывается по AbstractOptimizationTask.unique_id
     filehandler - инициализируется, если в общих настройках стоит флаг
-
-    Методы:
-    run_optimization(self, **kwargs) - Запуск процесса оптимизации. 
-    Помимо самой оптимизации, необходимо настроить логирование и 
-    выполнить настройки, связанные с издержками вложенной архитектуры
-    оптимизатора. Запускает метод optimize - определяемый конкретной реализацией оптимизатора. 
-    После оптимизации освобождает ресурсы
-
-    _set_up_logging_for_solver(self) - настройка логирования солвера и классов ограничений
-    при порождении оптимизатора внутри другого оптимизатора. 
-
-    _create_handlers(self) - создание обработчиков логов
     """
     def __init__(self, optimized_object: AbstractOptimizationTask):
         self.optimized_object = optimized_object
@@ -143,8 +108,14 @@ class AbstractOPtimizer():
         self.stream_handler_level = logging.CRITICAL
 
     def _set_up_logging_for_solver(self):
-        self.optimized_object.solver.set_working_dir(self.optimized_object.local_log_path)
-        self.optimized_object.solver.initialize_log(self.optimized_object.local_log_path)
+        self.optimized_object.solver.set_working_dir(
+            self.optimized_object.local_log_path,
+            self.optimized_object.logging_dir  # Передаём директорию
+        )
+        self.optimized_object.solver.initialize_log(
+            self.optimized_object.local_log_path,
+            self.optimized_object.logging_dir  # Передаём директорию
+        )
         for constraint in self.optimized_object.cons:
             constraint_object: Constraint = constraint["fun"]
             constraint_object.logger = logging.getLogger(self.optimized_object.local_log_path + "solver_log")
@@ -163,8 +134,14 @@ class AbstractOPtimizer():
             
             if not self.optimized_object._inner_optimizer and \
                 hasattr(self.optimized_object.solver, "set_working_dir"):
-                self.optimized_object.solver.set_working_dir(self.optimized_object.local_log_path)
-                self.optimized_object.solver.initialize_log(self.optimized_object.local_log_path)
+                self.optimized_object.solver.set_working_dir(
+                    self.optimized_object.local_log_path,
+                    self.optimized_object.logging_dir
+                )
+                self.optimized_object.solver.initialize_log(
+                    self.optimized_object.local_log_path,
+                    self.optimized_object.logging_dir
+                )
                 for constraint in self.optimized_object.cons:
                     constraint_object: Constraint = constraint["fun"]
                     constraint_object.logger = logging.getLogger(self.optimized_object.local_log_path + "solver_log")
@@ -185,7 +162,8 @@ class AbstractOPtimizer():
         handlers = []
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         if opt_tools_settings.FILEHANDLER:
-            global_log_dir = opt_tools_settings.LOGGING_DIR
+            # Используем директорию из объекта
+            global_log_dir = self.optimized_object.logging_dir
             this_log_dir = os.path.join(global_log_dir,
                                         self.optimized_object.local_log_path)
             

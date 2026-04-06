@@ -1,4 +1,3 @@
-
 import copy
 from optimization_tools.abstract_solver import AbstractSolver
 from optimization_tools.constraints_creators import Constraint
@@ -10,9 +9,11 @@ class OptimizationTaskWithInnerOptimizer(AbstractOptimizationTask):
     """
     
     """
-    def __init__(self, initial_state, unique_id, opt_conditions, solver: AbstractSolver,
-                 inner_optimizer: AbstractOPtimizer=None) -> None:
-        super().__init__(initial_state, unique_id, opt_conditions, solver)
+    def __init__(self, initial_state, unique_id, opt_conditions, 
+                 solver: AbstractSolver,
+                 inner_optimizer: AbstractOPtimizer=None,
+                 optimization_dir: str = None) -> None:
+        super().__init__(initial_state, unique_id, opt_conditions, solver, optimization_dir)
         self.cons = self.set_constraints()
         
         if inner_optimizer is None:
@@ -52,6 +53,3 @@ class OptimizationTaskWithInnerOptimizer(AbstractOptimizationTask):
     def mass(self, x):
         results = self.get_opt_task_results_for_point(x)
         return results.mass
-
-
-

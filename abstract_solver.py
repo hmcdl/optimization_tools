@@ -6,9 +6,6 @@ import threading
 import time
 
 from . import opt_tools_settings
-
-
-
 from .abstract_object import AbstractObject, CachableObject
 
 class AbstractSolver():
@@ -23,8 +20,7 @@ class AbstractSolver():
     def configure(self, configure_dict):
         raise NotImplementedError
 
-    def initialize_log(self, local_log_path): ...
-
+    def initialize_log(self, local_log_path, base_log_dir=None): ...
     def free_up_log_file(self): ...
 
 
@@ -34,32 +30,29 @@ class WorkingDirSolver(AbstractSolver):
         self.logger = logging.getLogger(__name__)
         self.working_dir = None
     
-    def set_working_dir(self, local_working_dir_path):
-        global_log_dir = opt_tools_settings.LOGGING_DIR
+    def set_working_dir(self, local_working_dir_path, base_log_dir=None):
+        # Используем переданную директорию или глобальную
+        global_log_dir = base_log_dir if base_log_dir is not None else opt_tools_settings.get_logging_dir()
         self.working_dir = os.path.join(global_log_dir, local_working_dir_path)
         os.makedirs(self.working_dir, exist_ok=True)
-
-
 
 
 class LoggableSolver(WorkingDirSolver):
     def __init__(self) -> None:
         super().__init__()
         self.filehandler = None
-        # self.logger = logging.getLogger(__name__)
 
-    def initialize_log(self, local_log_path):
+    def initialize_log(self, local_log_path, base_log_dir=None):
         self.logger = logging.getLogger(local_log_path + "solver_log")
         self.logger.setLevel(logging.INFO)
-        global_log_dir = opt_tools_settings.LOGGING_DIR
+        # Используем переданную директорию или глобальную
+        global_log_dir = base_log_dir if base_log_dir is not None else opt_tools_settings.get_logging_dir()
         this_log_dir = os.path.join(global_log_dir, local_log_path)
-        # self.working_dir = this_log_dir
         os.makedirs(this_log_dir, exist_ok=True)
         this_log_file = os.path.join(this_log_dir, "solver_log.log")
         filehandler = logging.FileHandler(filename=this_log_file, encoding='utf-8', mode="w")
         filehandler.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(levelname)s - %(message)s')
-
         filehandler.setFormatter(formatter)
         self.logger.addHandler(filehandler)
         self.filehandler = filehandler
