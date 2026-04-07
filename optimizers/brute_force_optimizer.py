@@ -15,9 +15,9 @@ from optimization_tools.optimization_executors import AbstractExecutor
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer
 from optimization_tools.utils import iterate
 from optimization_tools.simple_optimization_task import OptimizationTaskWithInnerOptimizer
+from optimization_tools.mapping_utils import ParameterMapper  # Новый импорт
 
 from .. import opt_tools_settings
-
 
 
 class BruteForceOptimizer(AbstractOPtimizer):
@@ -32,8 +32,6 @@ class BruteForceOptimizer(AbstractOPtimizer):
     set_executor(self, executor)
 
     optimize(self, **kwargs) - оптимизация
-
-
     """
     def __init__(self, optimized_object: OptimizationTaskWithInnerOptimizer, discreteness, seed_map: list = []):
         super().__init__(optimized_object)
@@ -41,16 +39,32 @@ class BruteForceOptimizer(AbstractOPtimizer):
         self.seed_map: dict = seed_map
         self.executor = ForLoopExecutor()
         self.all_points = None
-        
+        self.param_mapper = None  # Будет инициализирован в optimize
 
     def set_executor(self, executor) -> None:
         self.executor: AbstractExecutor = executor
 
+    def _init_mapper(self):
+        """Инициализирует маппер для кодирования параметров"""
+        mapping_file = os.path.join(
+            self.optimized_object.logging_dir,
+            self.optimized_object.local_log_path,
+            "parameter_mapping.json"
+        )
+        self.param_mapper = ParameterMapper(mapping_file)
+
+    def _get_params_dict_from_point(self, point: list) -> dict:
+        """Создает словарь параметров из точки"""
+        params_dict = {}
+        for j, component_name in enumerate(self.optimized_object.conversion_map.values()):
+            params_dict[component_name] = round(point[j], 6)  # Округляем для согласованности
+        return params_dict
 
     def optimize(self, **kwargs) -> OptimizationTaskResults:
         logger = self.logger
         all_vars_ranges = []
         logger = logging.getLogger(self.optimized_object.unique_id)
+        
         # Используем директорию из объекта
         global_log_dir = self.optimized_object.logging_dir
         this_log_dir = os.path.join(global_log_dir,
@@ -67,14 +81,10 @@ class BruteForceOptimizer(AbstractOPtimizer):
         logger.log(logging.DEBUG, "BruteForce optimization started")
         time_start = time.time()
 
+        # Инициализируем маппер
+        self._init_mapper()
+
         # Составляем списки значений переменных
-        # Если область значений параметра изначально дискретная, 
-        # то кладем его, как есть.
-        # Если область непрерывная, то разбиваем на равные промежутки
-        # в соответствии с настройкой дискретности оптимизатора
-        # В результате получаем список списков
-        # [[0.8, 0.9, 1.0, 1.1, 1.2], [0.008, 0.009, 0.01, 0.011, 0.012]]
-        # Порядок следования списков соответствует порядку в conversion_map
         bounds_for_gradient = []
         for key, opt_var_name in self.optimized_object.conversion_map.items():
             var_constraints = self.optimized_object.opt_conditions.vars[self.optimized_object.conversion_map[key]]
@@ -94,27 +104,17 @@ class BruteForceOptimizer(AbstractOPtimizer):
                 else:
                     overlap_ratio = 0.5
                     some_var_bounds = []
-                    # Если только одна точка, возвращаем отрезок нулевой длины
                     if len(some_var_values) > 1:
-                    
                         n = len(some_var_values)
-                        
-                        # Вычисляем шаг между точками
                         step = some_var_values[1] - some_var_values[0]
-                        
-                        # Вычисляем длину перекрытия
                         overlap = step * overlap_ratio
                         
-                        # Создаем сегменты
                         for i in range(n - 1):
                             start = some_var_values[i] - overlap
                             end = some_var_values[i + 1] + overlap
                             
-                            # Для первого сегмента: начало остается исходным
                             if i == 0 or start < some_var_values[i]:
                                 start = some_var_values[i]
-                            
-                            # Для последнего сегмента: конец остается исходным
                             if i == n - 2 or end > some_var_values[-1]:
                                 end = some_var_values[-1]
                             
@@ -122,94 +122,137 @@ class BruteForceOptimizer(AbstractOPtimizer):
                     else:
                         some_var_bounds = [[some_var_values[0], some_var_values[0]]]
                     
-                    
-                    # if len(some_var_values) > 1:
-                    #     some_var_bounds.append((some_var_values[0], (some_var_values[0] + some_var_values[1]) / 2 * 1.1))
-                    # else:
-                    #     some_var_bounds.append((min_val, max_val))
-                    # for i in range(1, len(some_var_values)- 1):
-                    #     some_var_bounds.append(((some_var_values[i-1] + some_var_values[i]) / 2 * 0.9,
-                    #                             (some_var_values[i] + some_var_values[i+1]) / 2* 1.1) )
-                    # if len(some_var_values) > 1:
-                    #     some_var_bounds.append((
-                    #         ((some_var_values[-2] + some_var_values[-1]) / 2 * 0.9),
-                    #                             some_var_values[-1])
-                    #     )
                     all_vars_ranges.append(numpy.linspace(min_val, max_val, len(some_var_bounds)))
                     bounds_for_gradient.append(some_var_bounds)
 
-
-        
-        # создаем набор точек параметров all_points.
-        # [[0.8, 0.008], [0.8, 0.009], ..., [0.09, 0.008], [0.08, 0.009], ... [1.2, 0.012]]
-        
+        # создаем набор точек параметров all_points
         if self.all_points is not None:
             all_points = self.all_points
         else:
             all_points = []
             all_bounds = []
-            # Уебищная функция, заполняет all_points
             iterate(0, all_vars_ranges, all_points, [])
             iterate(0, bounds_for_gradient, all_bounds, [])
         
+        # Логируем количество точек
+        logger.info(f"Total points to evaluate: {len(all_points)}")
+        
         another_type_results: list[OptimizationTaskResults] = []
-        inner_optimizers_copies: list[AbstractOPtimizer] = [ copy.deepcopy(self.optimized_object.inner_optimizer) 
+        inner_optimizers_copies: list[AbstractOPtimizer] = [copy.deepcopy(self.optimized_object.inner_optimizer) 
                                    for _ in range(len(all_points))]
+        
+        # Словарь для хранения соответствия кода и параметров (для логирования)
+        code_to_point_info = {}
+        
         for i, optimizer in enumerate(inner_optimizers_copies):
             if hasattr(optimizer, "executor"):
                 optimizer.set_executor(self.optimized_object.inner_optimizer.executor)
+            
             for j, opt_var in enumerate(optimizer.optimized_object.opt_conditions.vars.keys()):
                 if opt_var in self.optimized_object.opt_conditions.vars:
                     new_bounds_for_this_var = all_bounds[i][j]
                     if opt_var in self.seed_map.keys():
                         all_points[i][j] = (all_bounds[i][j][0] + all_bounds[i][j][1]) / 2
-                    optimizer.optimized_object.opt_conditions.vars[opt_var] = {"min":new_bounds_for_this_var[0], "max": new_bounds_for_this_var[1]}
+                    optimizer.optimized_object.opt_conditions.vars[opt_var] = {
+                        "min": new_bounds_for_this_var[0], 
+                        "max": new_bounds_for_this_var[1]
+                    }
+            
             inner_model = copy.deepcopy(self.optimized_object.model)
             self.optimized_object.x_to_model(inner_model, all_points[i], self.optimized_object.conversion_map)
             optimizer.optimized_object.model = inner_model
-            point_dict_str = ""
-            for j, component_name in enumerate(self.optimized_object.conversion_map.values()):
-                point_dict_str += component_name + "=" + str(round(all_points[i][j], 3))
-                # .append(f"{key}={all_points[i][j]}")
+            
+            # Получаем словарь параметров для текущей точки
+            params_dict = self._get_params_dict_from_point(all_points[i])
+            
+            # Получаем код для этих параметров
+            point_code = self.param_mapper.get_or_create_code(params_dict)
+            code_to_point_info[point_code] = params_dict
+            
+            # Используем код как имя папки
             optimizer.optimized_object.optimization_dir = self.optimized_object.optimization_dir
-            optimizer.optimized_object.unique_id = self.optimized_object.unique_id + "__" + point_dict_str
-            # optimizer.optimized_object.solver.
-            all_points_for_local_log_path = [round(point, 3) for point in all_points[i]]
-            optimizer.optimized_object.local_log_path = self.optimized_object.local_log_path +\
-                  "/" + str(all_points_for_local_log_path)
+            optimizer.optimized_object.unique_id = f"{self.optimized_object.unique_id}__code_{point_code}"
+            
+            # Путь к папке с кодом
+            optimizer.optimized_object.local_log_path = os.path.join(
+                self.optimized_object.local_log_path,
+                f"point_{point_code}"
+            )
+            
+            # Логируем соответствие
+            logger.debug(f"Point {point_code}: {params_dict}")
         
+        # Логируем итоговое соответствие кодов и параметров
+        logger.info("=" * 60)
+        logger.info("Parameter mapping (code -> parameters):")
+        for code, params in self.param_mapper.code_to_params.items():
+            logger.info(f"  Code {code}: {params}")
+        logger.info("=" * 60)
+        
+        # Запускаем вычисления
         another_type_results = self.executor(inner_optimizers_copies)
 
-        constraints_satisfied_points: list[OptimizationTaskResults] = []
-        for result in another_type_results:
+        # Анализируем результаты
+        constraints_satisfied_points: list[tuple[int, OptimizationTaskResults]] = []
+        
+        for i, result in enumerate(another_type_results):
+            if result is None or result.constr_values is None:
+                continue
+                
             all_satisfied = True
             point_constraints = result.constr_values
-            if point_constraints is None: #Если все оптимизации для данной точки провалились, то result.constr_values будет содержать None
-                continue
+            
             for key, val in point_constraints.items():
-                # Сравниваем фактического получившегося значение огрнаничения с
-                # заданным, чтобы превышение было не более, чем на 1% от заданного ограничения 
-                etalon = - abs(0.01 * self.optimized_object.opt_conditions.constraints[key])
-                difference = val - self.optimized_object.opt_conditions.constraints[key]
-                if val - self.optimized_object.opt_conditions.constraints[key] < - abs(0.01 * self.optimized_object.opt_conditions.constraints[key]):
-                    all_satisfied = False
+                if key in self.optimized_object.opt_conditions.constraints:
+                    limit = self.optimized_object.opt_conditions.constraints[key]
+                    if val - limit < -abs(0.01 * limit):
+                        all_satisfied = False
+                        break
+            
             if all_satisfied:
-                constraints_satisfied_points.append(result)
+                # Получаем код для этой точки
+                params_dict = self._get_params_dict_from_point(all_points[i])
+                point_code = self.param_mapper.get_or_create_code(params_dict)
+                constraints_satisfied_points.append((point_code, result))
 
         if len(constraints_satisfied_points) == 0:
+            logger.warning("No points satisfying constraints found")
             return OptimizationTaskResults({"status_code": 0}, 1, None, None, None, None)
-        min_mass_point: OptimizationTaskResults = sorted(constraints_satisfied_points, key=lambda x: x.mass)[0]
+        
+        # Находим точку с минимальной массой
+        min_mass_point_code, min_mass_point = min(constraints_satisfied_points, key=lambda x: x[1].mass)
+        
+        # Логируем победителя
+        logger.info("=" * 60)
+        logger.info("BEST POINT FOUND:")
+        logger.info(f"Code: {min_mass_point_code}")
+        logger.info(f"Parameters: {self.param_mapper.get_params(min_mass_point_code)}")
+        logger.info(f"Mass: {min_mass_point.mass}")
+        logger.info("=" * 60)
+        
+        # Сохраняем информацию о победителе в отдельный файл
+        winner_info = {
+            "winning_code": min_mass_point_code,
+            "parameters": self.param_mapper.get_params(min_mass_point_code),
+            "mass": min_mass_point.mass,
+            "constraints": min_mass_point.constr_values,
+            "variables": min_mass_point.var_values
+        }
+        
+        winner_file = os.path.join(this_log_dir, "winner_info.json")
+        with open(winner_file, 'w', encoding='utf-8') as f:
+            json.dump(winner_info, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Winner info saved to: {winner_file}")
+        
+        # Выводим информацию о победителе
         logger.info("Brute force optimization finished")
         logger.info(f"Optimization duration {time.time() - time_start}")
-        # logger.info(f"unique_id f{self.optimized_object.unique_id}")
-        best_combination: str = ""
-        for j, component_name in enumerate(self.optimized_object.conversion_map.values()):
-                best_combination += component_name + "=" + str(getattr(min_mass_point.model, component_name))
-        logger.info(best_combination)
-        logger.info("Ruslult variables:")
+        logger.info(f"Winning point code: {min_mass_point_code}")
+        logger.info("Result variables:")
         logger.info(json.dumps(min_mass_point.var_values, indent=2))
         logger.info("Margin values:")
         logger.info(json.dumps(min_mass_point.constr_values, indent=2))
         logger.info(f"mass = {str(min_mass_point.mass)}")
-        logger.info(f"history = {json.dumps(min_mass_point.history)}")
+        
         return min_mass_point

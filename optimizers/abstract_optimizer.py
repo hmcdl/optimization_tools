@@ -162,13 +162,14 @@ class AbstractOPtimizer():
         handlers = []
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         if opt_tools_settings.FILEHANDLER:
-            # Используем директорию из объекта
             global_log_dir = self.optimized_object.logging_dir
             this_log_dir = os.path.join(global_log_dir,
                                         self.optimized_object.local_log_path)
             
             os.makedirs(this_log_dir, exist_ok=True)
-            this_log_file = os.path.join(this_log_dir, self.optimized_object.unique_id + ".log")
+            # Используем короткое имя файла
+            log_filename = f"{self.optimized_object.unique_id.split('__')[-1]}.log"
+            this_log_file = os.path.join(this_log_dir, log_filename)
             filehandler = logging.FileHandler(filename=this_log_file, encoding='utf-8', mode="w")
             filehandler.setLevel(logging.DEBUG)
             filehandler.setFormatter(formatter)
