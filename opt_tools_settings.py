@@ -1,58 +1,105 @@
-import ast
-import os
-from os.path import join, dirname
-from dotenv import load_dotenv
+# Значения по умолчанию
+_settings = {
+    'LOGGING_DIR': None,
+    'CALCULATION_DIR': None,
+    'LAT_GEN_PATH': None,
+    'PANEL_SOLVER': None,
+    'MAT_DB_PATH': None,
+    'NASTRAN_SOLVER_PATH': None,
+    'NUM_PROC': 1,
+    'SINGLE_FEM_TASK_TIMEOUT': 300.0,
+    'MAX_ITER': 100,
+    'DEBUG': False,
+    'RABBIT': False,
+    'RPC_Q_IP': 'localhost',
+    'RPC_Q_PORT': 5672,
+    'FILEHANDLER': True,
+    'STREAMHANDLER': False,
+}
 
-# load_dotenv()
 
-# Глобальная переменная для переопределения пути логирования (теперь она необязательна)
-DEFAULT_LOGGING_DIR = os.environ.get("LOGGING_DIR")
-
-def get_logging_dir(custom_dir: str = None) -> str:
+def configure(config_dict=None, **kwargs):
     """
-    Получить директорию для логирования.
-    Если передан custom_dir, используется он.
-    Иначе возвращается значение из .env или None
+    Настройка параметров через словарь или именованные аргументы.
+    
+    Примеры:
+        # Через словарь
+        configure({'LOGGING_DIR': '/path/to/logs', 'MAX_ITER': 200})
+        
+        # Через именованные аргументы
+        configure(LOGGING_DIR='/path/to/logs', MAX_ITER=200)
+        
+        # Смешанный вариант
+        configure({'LOGGING_DIR': '/path/to/logs'}, MAX_ITER=200)
     """
-    if custom_dir is not None:
-        return custom_dir
-    return DEFAULT_LOGGING_DIR
+    if config_dict:
+        _settings.update(config_dict)
+    if kwargs:
+        _settings.update(kwargs)
 
-CALCULATION_DIR = os.environ.get("CALCULATION_DIR")
-LAT_GEN_PATH = os.environ.get("LAT_GEN_PATH")
-PANEL_SOLVER = os.environ.get("PANEL_SOLVER")
-MAT_DB_PATH = os.environ.get("MAT_DB_PATH")
-NASTRAN_SOLVER_PATH = os.environ.get("NASTRAN_SOLVER_PATH")
-NUM_PROC = int(os.environ.get("NUM_PROC"))
-SINGLE_FEM_TASK_TIMEOUT = float(os.environ.get("SINGLE_FEM_TASK_TIMEOUT"))
-MAX_ITER = int(os.environ.get("MAX_ITER"))
 
-DEBUG = int(os.environ.get("DEBUG_FLAG"))
-if DEBUG == 1:
-    DEBUG = True
-else:
-    DEBUG = False
+def get(key, default=None):
+    """Получить значение настройки по ключу"""
+    return _settings.get(key, default)
 
-RABBIT = int(os.environ.get("RABBIT"))
-if RABBIT == 1:
-    RABBIT = True
-else:
-    RABBIT = False
 
-RPC_Q_IP = os.environ.get("RPC_Q_IP")
-RPC_Q_PORT = int(os.environ.get("RPC_Q_PORT"))
+# Геттеры для часто используемых настроек
+def get_logging_dir(custom_dir=None):
+    """Получить директорию для логирования"""
+    return custom_dir if custom_dir is not None else _settings['LOGGING_DIR']
 
-# Для обратной совместимости
-LOGGING_DIR = DEFAULT_LOGGING_DIR
 
-FILEHANDLER = int(os.environ.get("FILEHANDLER"))
-if FILEHANDLER == 1:
-    FILEHANDLER = True
-else:
-    FILEHANDLER = False
+def get_calculation_dir():
+    return _settings['CALCULATION_DIR']
 
-STREAMHANDLER = int(os.environ.get("STREAMHANDLER"))
-if STREAMHANDLER == 1:
-    STREAMHANDLER = True
-else:
-    STREAMHANDLER = False
+
+def get_lat_gen_path():
+    return _settings['LAT_GEN_PATH']
+
+
+def get_panel_solver():
+    return _settings['PANEL_SOLVER']
+
+
+def get_mat_db_path():
+    return _settings['MAT_DB_PATH']
+
+
+def get_nastran_solver_path():
+    return _settings['NASTRAN_SOLVER_PATH']
+
+
+def get_num_proc():
+    return _settings['NUM_PROC']
+
+
+def get_single_fem_task_timeout():
+    return _settings['SINGLE_FEM_TASK_TIMEOUT']
+
+
+def get_max_iter():
+    return _settings['MAX_ITER']
+
+
+def get_debug():
+    return _settings['DEBUG']
+
+
+def get_rabbit():
+    return _settings['RABBIT']
+
+
+def get_rpc_q_ip():
+    return _settings['RPC_Q_IP']
+
+
+def get_rpc_q_port():
+    return _settings['RPC_Q_PORT']
+
+
+def get_filehandler():
+    return _settings['FILEHANDLER']
+
+
+def get_streamhandler():
+    return _settings['STREAMHANDLER']

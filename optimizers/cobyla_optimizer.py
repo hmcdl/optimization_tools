@@ -18,7 +18,7 @@ from optimization_tools.opt_conditions import OptimizationTaskResults
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, AbstractOptimizationTask
 from .gradient_optimizer import OptimizationTaskWithNormalization
 
-from ..opt_tools_settings import MAX_ITER
+from ..opt_tools_settings import get_max_iter
 
 
 class COBYLAOptimizer(AbstractOPtimizer):
@@ -75,7 +75,7 @@ class COBYLAOptimizer(AbstractOPtimizer):
             }
             res = minimize(self.optimized_object.mass, x0_normalized, method='COBYLA',
                         jac='3-point', constraints= self.optimized_object.cons, bounds=bounds, 
-                        options={'maxiter': MAX_ITER, 'disp': True}, callback=self.callback)
+                        options={'maxiter': get_max_iter(), 'disp': False}, callback=self.callback)
             
             logger.info(f"SLSQP finished at {sim_start_time} with status {res.status}")
             logger.info(f"SLSQP duration {time.time() - sim_start_time}")
@@ -105,7 +105,8 @@ class COBYLAOptimizer(AbstractOPtimizer):
             logger.info(f"mass = {str(mass)}")
             logger.info(json.dumps(self.history))
             results : OptimizationTaskResults = OptimizationTaskResults(
-                0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model)
+                0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model,
+                opt_conditions=self.optimized_object.opt_conditions)
 
             return results
         except SolverError:

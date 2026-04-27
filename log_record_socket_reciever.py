@@ -11,7 +11,7 @@ import logging.handlers
 import socketserver
 import struct
 
-from optimization_tools.opt_tools_settings import LOGGING_DIR
+from optimization_tools.opt_tools_settings import get_logging_dir
 
 
 class LogRecordStreamHandler(socketserver.StreamRequestHandler):

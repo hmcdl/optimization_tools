@@ -10,22 +10,31 @@ import time
 
 from scipy.optimize import minimize, Bounds
 
-from exceptions import AllLoadsZeroException
+# from exceptions import AllLoadsZeroException
+from ..config import OptimizationConfig
 from optimization_tools.abstract_solver import AbstractSolver
 from optimization_tools.constraints_creators import ConstraintForNormalized
 from optimization_tools.exceptions import SolverError
 from optimization_tools.opt_conditions import OptimizationTaskResults
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, AbstractOptimizationTask
 
-from ..opt_tools_settings import MAX_ITER
+from .. import opt_tools_settings
+# print(f"MAX_ITER {get_max_iter()}")
 
 class OptimizationTaskWithNormalization(AbstractOptimizationTask):
     """
     Оптимизационная задача с нормализацией переменных.
     """
-    def __init__(self, initial_state, unique_id, opt_conditions, 
-                 solver: AbstractSolver, optimization_dir: str = None) -> None:
-        super().__init__(initial_state, unique_id, opt_conditions, solver, optimization_dir)
+    def __init__(
+        self, 
+        initial_state, 
+        unique_id, 
+        opt_conditions, 
+        solver: AbstractSolver, 
+        config: OptimizationConfig,
+        optimization_dir: str = None
+    ) -> None:
+        super().__init__(initial_state, unique_id, opt_conditions, solver, config, optimization_dir)
         self.lower_bounds = []
         self.upper_bounds = []
         self.cost_function_normalization = None
@@ -76,6 +85,7 @@ class OptimizationTaskWithNormalization(AbstractOptimizationTask):
         return vars_dict
 
     def mass(self, x):
+        x = [float(x_component) for x_component in x]
         logger = logging.getLogger(self.local_log_path + "solver_log")
         cur_values_map = {}
         for i,val in enumerate(x):
@@ -91,15 +101,19 @@ class OptimizationTaskWithNormalization(AbstractOptimizationTask):
 
 
 class GradientOptimizer(AbstractOPtimizer):
-    """
-    Градиентный оптимизатор.
-    """
-    def __init__(self, optimized_object: OptimizationTaskWithNormalization, first_approx_function=None):
-        super().__init__(optimized_object=optimized_object)
+    def __init__(
+        self, 
+        optimized_object: OptimizationTaskWithNormalization, 
+        config: OptimizationConfig,
+        first_approx_function=None
+    ):
+        super().__init__(optimized_object, config)
         self.first_approx_function = first_approx_function
         self.history: list[dict] = []
 
     def callback(self, x):
+        if len(self.history)  == 4:
+            debug = 1
         vars_dict = self.optimized_object.get_vars_dict(x)
         vars_list = [vars_dict[var] for var in vars_dict]
         model = copy.deepcopy(self.optimized_object.model)
@@ -109,6 +123,12 @@ class GradientOptimizer(AbstractOPtimizer):
         self.optimized_object.history = self.history
 
     def optimize(self, **kwargs) -> OptimizationTaskResults:
+        # Используем self.config.max_iter
+        options = {
+            'maxiter': self.config.max_iter, 
+            'disp': False, 
+            "finite_diff_rel_step": 0.02
+        }
         try:
             self.optimized_object.update_opt_vars()
             logger = self.logger
@@ -150,7 +170,7 @@ class GradientOptimizer(AbstractOPtimizer):
 
             res = minimize(self.optimized_object.mass, x0_normalized, method='SLSQP',
                         jac='3-point', constraints= self.optimized_object.cons, bounds=bounds, 
-                        options={'maxiter': MAX_ITER, 'disp': False, "finite_diff_rel_step": 0.02}, 
+                        options=options, 
                         callback=self.callback)
             
             logger.info(f"SLSQP finished at {sim_start_time} with status {res.status}")
@@ -173,6 +193,7 @@ class GradientOptimizer(AbstractOPtimizer):
                 else:
                     constraint = self.optimized_object.cons[i]['fun'](res.x)
                 final_constraints[constraint_name] = constraint
+            logger.info(f"MAX_ITER {opt_tools_settings.get("MAX_ITER")}")
             logger.info(f"Optimization duration {time.time() - time_start}")
             logger.info("Result variables:")
             logger.info(json.dumps(result_vars_map, indent=2))
@@ -181,7 +202,8 @@ class GradientOptimizer(AbstractOPtimizer):
             logger.info(f"mass = {str(mass)}")
             logger.info(json.dumps(self.history))
             results : OptimizationTaskResults = OptimizationTaskResults(
-                0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model)
+                0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model,
+                opt_conditions=self.optimized_object.opt_conditions)
             results.history = self.history
             return results
         except SolverError:
@@ -189,10 +211,10 @@ class GradientOptimizer(AbstractOPtimizer):
             logger.exception("%s exception: " % self.optimized_object.unique_id)
             return OptimizationTaskResults(
                 1, 1, None, None, None, self.optimized_object.model)
-        except AllLoadsZeroException:
-            logger.warning(f"all loads zero for panel {self.optimized_object.unique_id}")
-            return OptimizationTaskResults(
-                1, 1, None, None, None, self.optimized_object.model)
+        # except AllLoadsZeroException:
+        #     logger.warning(f"all loads zero for panel {self.optimized_object.unique_id}")
+        #     return OptimizationTaskResults(
+        #         1, 1, None, None, None, self.optimized_object.model)
         finally:
             logger.info("LOG FINISH")
             if self.filehandler:

@@ -1,4 +1,5 @@
 import copy
+from optimization_tools.config import OptimizationConfig
 from optimization_tools.abstract_solver import AbstractSolver
 from optimization_tools.constraints_creators import Constraint
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, AbstractOptimizationTask
@@ -11,13 +12,14 @@ class OptimizationTaskWithInnerOptimizer(AbstractOptimizationTask):
     """
     def __init__(self, initial_state, unique_id, opt_conditions, 
                  solver: AbstractSolver,
+                 config: OptimizationConfig,
                  inner_optimizer: AbstractOPtimizer=None,
                  optimization_dir: str = None) -> None:
-        super().__init__(initial_state, unique_id, opt_conditions, solver, optimization_dir)
+        super().__init__(initial_state, unique_id, opt_conditions, solver, config, optimization_dir)
         self.cons = self.set_constraints()
         
         if inner_optimizer is None:
-            self._inner_optimizer = NullOptimizer(copy.deepcopy(self))
+            self._inner_optimizer = NullOptimizer(copy.deepcopy(self), config)
             self._inner_optimizer.optimized_object._inner_optimizer = None
         else:
             self._inner_optimizer = inner_optimizer

@@ -5,28 +5,34 @@ import pickle
 import uuid
 from pathos.multiprocessing import ProcessingPool
 import pika 
+from dataclasses import asdict
+from optimization_tools.config import OptimizationConfig
 
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer
 from . import opt_tools_settings
 
-def set_local_directions_and_run_single_optimization(optimizer: AbstractOPtimizer):
-    """
-    Для запуска через функции, требующие сериализации
-    """
-    optimizer.optimized_object.solver.set_working_dir(optimizer.optimized_object.unique_id)
-    optimizer.optimized_object.solver.initialize_log(optimizer.optimized_object.unique_id)
-    result = optimizer.run_optimization()
-    return result
 
-def run_single_optimization(optimizer: AbstractOPtimizer):
+def run_single_optimization(optimizer: AbstractOPtimizer, config_dict: dict = None):
+    """
+    Запуск оптимизации. 
+    config_dict нужен только для параллельного выполнения.
+    """
+    # В параллельном режиме восстанавливаем конфиг
+    if config_dict:
+        config = OptimizationConfig.from_dict(config_dict)
+        optimizer.config = config
+        optimizer.optimized_object.config = config
+        optimizer.optimized_object.solver.config = config
+    
     result = optimizer.run_optimization()
     return result
 
 class panel_optimization_client(object):
     def __init__(self):
         credentials = pika.PlainCredentials('user', 'password')
-        parameters = pika.ConnectionParameters(opt_tools_settings.RPC_Q_IP,
-                                        opt_tools_settings.RPC_Q_PORT,
+        parameters = pika.ConnectionParameters(
+            opt_tools_settings.get_rpc_q_ip(),
+            opt_tools_settings.get_rpc_q_port(),
                                         '/',
                                         credentials,
                                         heartbeat=600,
@@ -80,10 +86,12 @@ class AbstractExecutor(metaclass=ABCMeta):
 
 
 class ForLoopExecutor(AbstractExecutor):
-    def __init__(self) -> None:
+    def __init__(self, config: OptimizationConfig):
+        self.config = config
         self.function = run_single_optimization
 
     def __call__(self, tasks):
+        # В последовательном режиме конфиг уже в optimizer
         return list(map(self.function, tasks))
     
 
@@ -107,19 +115,33 @@ class MultiprocessExecutor(AbstractExecutor):
 
 
 class MultiprocessExecutorCF(AbstractExecutor):
-    def __init__(self, pool) -> None:
-        # self.num_proc = num_proc
-        self.pool: ProcessPoolExecutor = pool
+    def __init__(self, pool=None, config: OptimizationConfig=None):
+        if pool is None:
+            self.pool = ProcessPoolExecutor(max_workers=config.num_proc)
+            self._own_pool = True
+        else:
+            self.pool = pool
+            self._own_pool = False
+        
+        self.config = config
         self.function = run_single_optimization
     
     def __call__(self, tasks):
         future_results: list[Future] = []
+        config_dict = self.config.to_dict()  # Сериализуем конфиг
+        
         for task in tasks:
-            future_result = self.pool.submit(self.function, task)
+            # Передаем конфиг в дочерний процесс
+            future_result = self.pool.submit(self.function, task, config_dict)
             future_results.append(future_result)
+        
         calculated = []
         for result in future_results:
             calculated.append(result.result())
+        
+        if self._own_pool:
+            self.pool.shutdown()
+        
         return calculated
 
 class ThreadExecutor(AbstractExecutor):

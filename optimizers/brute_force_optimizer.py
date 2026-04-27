@@ -33,11 +33,11 @@ class BruteForceOptimizer(AbstractOPtimizer):
 
     optimize(self, **kwargs) - оптимизация
     """
-    def __init__(self, optimized_object: OptimizationTaskWithInnerOptimizer, discreteness, seed_map: list = []):
-        super().__init__(optimized_object)
+    def __init__(self, optimized_object: OptimizationTaskWithInnerOptimizer, discreteness, config, seed_map: list = []):
+        super().__init__(optimized_object, config=config)
         self.discreteness = discreteness
         self.seed_map: dict = seed_map
-        self.executor = ForLoopExecutor()
+        self.executor = ForLoopExecutor(config)
         self.all_points = None
         self.param_mapper = None  # Будет инициализирован в optimize
 
@@ -97,7 +97,7 @@ class BruteForceOptimizer(AbstractOPtimizer):
                     some_var_values = list(numpy.linspace(min_val, max_val, self.discreteness))
                 else:
                     if opt_var_name in self.seed_map.keys():
-                        some_var_values = list(numpy.linspace(min_val, max_val, self.seed_map[opt_var_name]))
+                        some_var_values = list(numpy.linspace(min_val, max_val, self.seed_map[opt_var_name] + 1))
                 if opt_var_name not in self.seed_map.keys():
                     bounds_for_gradient.append([(min_val, max_val)])
                     all_vars_ranges.append([getattr(self.optimized_object.model, opt_var_name)])

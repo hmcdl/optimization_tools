@@ -38,5 +38,6 @@ class ConstraintForNormalized(Constraint):
         self.denorm_coefficients = denorm_coefficients
 
     def __call__(self, x):
+        x = [float(x_component) for x_component in x]
         x_denorm = [x[i] * self.denorm_coefficients[i] for i in range(len(self.denorm_coefficients))]
         return super().__call__(x_denorm)
