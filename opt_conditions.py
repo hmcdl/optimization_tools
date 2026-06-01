@@ -15,12 +15,12 @@ class OptConditions():
                 self.vars.pop(opt_var)
 
 class OptimizationTaskResults():
-    def __init__(self, task_status_, optimizer_status_, var_values_, constr_values_, mass, model: AbstractObject, metadata: Dict = None, opt_conditions=None):
+    def __init__(self, task_status_, optimizer_status_, var_values_, constr_values_, objective, model: AbstractObject, metadata: Dict = None, opt_conditions=None):
         self.task_status: Dict = task_status_
         self.optimizer_status: int = optimizer_status_
         self.var_values: Dict = var_values_
         self.constr_values: Dict = constr_values_
-        self.mass: float = mass
+        self.objective: float = objective
         self.model = model
         self.metadata: Dict = metadata or {}
         self.opt_conditions = opt_conditions  # Добавляем условия оптимизации

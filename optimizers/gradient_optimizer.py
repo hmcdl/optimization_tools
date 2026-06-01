@@ -84,7 +84,7 @@ class OptimizationTaskWithNormalization(AbstractOptimizationTask):
 
         return vars_dict
 
-    def mass(self, x):
+    def objective(self, x):
         x = [float(x_component) for x_component in x]
         logger = logging.getLogger(self.local_log_path + "solver_log")
         cur_values_map = {}
@@ -95,8 +95,8 @@ class OptimizationTaskWithNormalization(AbstractOptimizationTask):
         logger.info(x_denorm)
         inner_model = copy.deepcopy(self.model)
         self.x_to_model(inner_model, x_denorm, self.conversion_map)
-        result = self.solver.solve(inner_model, self.unique_id, "mass")
-        logger.info(f"mass: {result}")
+        result = self.solver.solve(inner_model, self.unique_id, "objective")
+        logger.info(f"objective: {result}")
         return result / self.cost_function_normalization
 
 
@@ -162,13 +162,13 @@ class GradientOptimizer(AbstractOPtimizer):
                 self.optimized_object.unique_id, 
                 None
             )
-            cost_fun_coeff = initial_results["mass"]
-            self.optimized_object.cost_function_normalization = cost_fun_coeff
+            cost_fun_coeff = initial_results["objective"]
+            self.optimized_object.cost_function_normalization = cost_fun_coeff if cost_fun_coeff != 0 else 1
             sim_start_time = time.time()
             logger.info(json.dumps(self.optimized_object.opt_conditions.vars))
             logger.info(f"SLSQP started at {sim_start_time}")
 
-            res = minimize(self.optimized_object.mass, x0_normalized, method='SLSQP',
+            res = minimize(self.optimized_object.objective, x0_normalized, method='SLSQP',
                         jac='3-point', constraints= self.optimized_object.cons, bounds=bounds, 
                         options=options, 
                         callback=self.callback)
@@ -180,7 +180,7 @@ class GradientOptimizer(AbstractOPtimizer):
             self.optimized_object.x_to_model(self.optimized_object.model,
                                               res_x_denormalized, self.optimized_object.conversion_map)
             
-            mass = self.optimized_object.mass(res.x) * self.optimized_object.cost_function_normalization
+            objective = self.optimized_object.objective(res.x) * self.optimized_object.cost_function_normalization
             result_vars_map = {}
             for var in self.optimized_object.opt_conditions.vars:
                 result_vars_map[var] = getattr(self.optimized_object.model, var)
@@ -193,16 +193,16 @@ class GradientOptimizer(AbstractOPtimizer):
                 else:
                     constraint = self.optimized_object.cons[i]['fun'](res.x)
                 final_constraints[constraint_name] = constraint
-            logger.info(f"MAX_ITER {opt_tools_settings.get("MAX_ITER")}")
+            logger.info(f"MAX_ITER {opt_tools_settings.get(self.config.max_iter)}")
             logger.info(f"Optimization duration {time.time() - time_start}")
             logger.info("Result variables:")
             logger.info(json.dumps(result_vars_map, indent=2))
             logger.info("Margin values:")
             logger.info(json.dumps(final_constraints, indent=2))
-            logger.info(f"mass = {str(mass)}")
+            logger.info(f"objective = {str(objective)}")
             logger.info(json.dumps(self.history))
             results : OptimizationTaskResults = OptimizationTaskResults(
-                0, 0, result_vars_map, final_constraints, mass, self.optimized_object.model,
+                0, 0, result_vars_map, final_constraints, objective, self.optimized_object.model,
                 opt_conditions=self.optimized_object.opt_conditions)
             results.history = self.history
             return results

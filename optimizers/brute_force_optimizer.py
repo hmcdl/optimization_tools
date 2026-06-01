@@ -220,23 +220,23 @@ class BruteForceOptimizer(AbstractOPtimizer):
             return OptimizationTaskResults({"status_code": 0}, 1, None, None, None, None)
         
         # Находим точку с минимальной массой
-        min_mass_point_code, min_mass_point = min(constraints_satisfied_points, key=lambda x: x[1].mass)
+        min_objective_point_code, min_objective_point = min(constraints_satisfied_points, key=lambda x: x[1].objective)
         
         # Логируем победителя
         logger.info("=" * 60)
         logger.info("BEST POINT FOUND:")
-        logger.info(f"Code: {min_mass_point_code}")
-        logger.info(f"Parameters: {self.param_mapper.get_params(min_mass_point_code)}")
-        logger.info(f"Mass: {min_mass_point.mass}")
+        logger.info(f"Code: {min_objective_point_code}")
+        logger.info(f"Parameters: {self.param_mapper.get_params(min_objective_point_code)}")
+        logger.info(f"objective: {min_objective_point.objective}")
         logger.info("=" * 60)
         
         # Сохраняем информацию о победителе в отдельный файл
         winner_info = {
-            "winning_code": min_mass_point_code,
-            "parameters": self.param_mapper.get_params(min_mass_point_code),
-            "mass": min_mass_point.mass,
-            "constraints": min_mass_point.constr_values,
-            "variables": min_mass_point.var_values
+            "winning_code": min_objective_point_code,
+            "parameters": self.param_mapper.get_params(min_objective_point_code),
+            "objective": min_objective_point.objective,
+            "constraints": min_objective_point.constr_values,
+            "variables": min_objective_point.var_values
         }
         
         winner_file = os.path.join(this_log_dir, "winner_info.json")
@@ -248,11 +248,11 @@ class BruteForceOptimizer(AbstractOPtimizer):
         # Выводим информацию о победителе
         logger.info("Brute force optimization finished")
         logger.info(f"Optimization duration {time.time() - time_start}")
-        logger.info(f"Winning point code: {min_mass_point_code}")
+        logger.info(f"Winning point code: {min_objective_point_code}")
         logger.info("Result variables:")
-        logger.info(json.dumps(min_mass_point.var_values, indent=2))
+        logger.info(json.dumps(min_objective_point.var_values, indent=2))
         logger.info("Margin values:")
-        logger.info(json.dumps(min_mass_point.constr_values, indent=2))
-        logger.info(f"mass = {str(min_mass_point.mass)}")
+        logger.info(json.dumps(min_objective_point.constr_values, indent=2))
+        logger.info(f"objective = {str(min_objective_point.objective)}")
         
-        return min_mass_point
+        return min_objective_point

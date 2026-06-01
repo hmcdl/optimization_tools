@@ -22,6 +22,8 @@ class AbstractOptimizationTask:
         self.opt_conditions = opt_conditions
         self.solver = solver
         self.config = config
+        if not hasattr(self._model, "cache_signature_fields"):
+            self._model.cache_signature_fields = tuple(self.opt_conditions.vars.keys())
         self.conversion_map = self.get_conversion_map()
         self.local_log_path = self.unique_id
         self.optimization_dir = optimization_dir
