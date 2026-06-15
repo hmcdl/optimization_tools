@@ -1,5 +1,6 @@
 # optimization_tools/abstract_solver.py
 from abc import abstractmethod
+import copy
 import logging
 import os
 from .config import OptimizationConfig
@@ -60,6 +61,11 @@ class LoggableSolver(WorkingDirSolver):
             self.filehandler.close()
             self.filehandler = None
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["filehandler"] = None
+        return state
+
 
 class CachableSolver(LoggableSolver):
     def __init__(self, config: OptimizationConfig) -> None:
@@ -69,6 +75,16 @@ class CachableSolver(LoggableSolver):
     @abstractmethod
     def non_cached_calculation(self, calc_task, unique_id: str):
         raise NotImplementedError
+
+    def clone_for_parallel_eval(self, worker_tag: str = "") -> "CachableSolver":
+        clone = copy.deepcopy(self)
+        clone.cache_map = {}
+        clone.filehandler = None
+        clone.on_parallel_clone(worker_tag)
+        return clone
+
+    def on_parallel_clone(self, worker_tag: str) -> None:
+        """Hook for solver-specific isolation after deepcopy (e.g. unique workdirs)."""
 
     def solve(self, calc_task, unique_id: str, res_type: str | None) -> dict:
         signature = calc_task.signature() 

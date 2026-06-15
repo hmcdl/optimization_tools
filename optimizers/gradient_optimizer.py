@@ -8,6 +8,7 @@ import os
 import sys
 import time
 
+import numpy as np
 from scipy.optimize import minimize, Bounds
 
 # from exceptions import AllLoadsZeroException
@@ -19,6 +20,7 @@ from optimization_tools.opt_conditions import OptimizationTaskResults
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, AbstractOptimizationTask
 
 from .. import opt_tools_settings
+from ..parallel_fd import ParallelFiniteDifferences, clip_to_bounds
 # print(f"MAX_ITER {get_max_iter()}")
 
 class OptimizationTaskWithNormalization(AbstractOptimizationTask):
@@ -111,6 +113,13 @@ class GradientOptimizer(AbstractOPtimizer):
         self.first_approx_function = first_approx_function
         self.history: list[dict] = []
 
+    def _use_parallel_fd(self) -> bool:
+        if self.config.num_proc <= 1:
+            return False
+        if self.config.parallel_fd is not None:
+            return bool(self.config.parallel_fd)
+        return True
+
     def callback(self, x):
         if len(self.history)  == 4:
             debug = 1
@@ -127,7 +136,8 @@ class GradientOptimizer(AbstractOPtimizer):
         options = {
             'maxiter': self.config.max_iter, 
             'disp': False, 
-            "finite_diff_rel_step": 0.02
+            "finite_diff_rel_step": 0.01,
+            'ftol': 1e-6
         }
         try:
             self.optimized_object.update_opt_vars()
@@ -148,15 +158,22 @@ class GradientOptimizer(AbstractOPtimizer):
                 )
 
             x0 = self.optimized_object.get_x()
-            x0_normalized = [x0[i]*self.optimized_object.normalization_coefficients[i]
-                              for i in range(len(self.optimized_object.lower_bounds))]
-
             bounds = Bounds([self.optimized_object.lower_bounds[i] *
                               self.optimized_object.normalization_coefficients[i]
                                 for i in range(len(self.optimized_object.lower_bounds))], 
                         [self.optimized_object.upper_bounds[i] *
                           self.optimized_object.normalization_coefficients[i] 
                           for i in range(len(self.optimized_object.lower_bounds))])
+            x0_normalized = clip_to_bounds(
+                np.array(
+                    [
+                        x0[i] * self.optimized_object.normalization_coefficients[i]
+                        for i in range(len(self.optimized_object.lower_bounds))
+                    ],
+                    dtype=float,
+                ),
+                bounds,
+            )
             initial_results = self.optimized_object.solver.solve(
                 self.optimized_object.model, 
                 self.optimized_object.unique_id, 
@@ -168,10 +185,49 @@ class GradientOptimizer(AbstractOPtimizer):
             logger.info(json.dumps(self.optimized_object.opt_conditions.vars))
             logger.info(f"SLSQP started at {sim_start_time}")
 
-            res = minimize(self.optimized_object.objective, x0_normalized, method='SLSQP',
-                        jac='3-point', constraints= self.optimized_object.cons, bounds=bounds, 
-                        options=options, 
-                        callback=self.callback)
+            finite_diff_rel_step = options.get("finite_diff_rel_step", 0.01)
+            jac = "3-point"
+            constraints = self.optimized_object.cons
+            callback = self.callback
+            parallel_fd = None
+            if self._use_parallel_fd():
+                parallel_fd = ParallelFiniteDifferences(
+                    self.optimized_object,
+                    self.config,
+                    finite_diff_rel_step,
+                    bounds,
+                )
+                parallel_fd.setup()
+                parallel_fd.prefill(x0_normalized, commit_after=False)
+                jac = parallel_fd.objective_jac
+                constraints = parallel_fd.attach_constraint_jacs(constraints)
+                if self.config.prefetch_fd_in_callback:
+                    base_callback = self.callback
+
+                    def callback_with_prefetch(x, _base=base_callback, _fd=parallel_fd, _bounds=bounds):
+                        result = _base(x)
+                        _fd.prefill(
+                            clip_to_bounds(np.asarray(x, dtype=float), _bounds),
+                            commit_after=False,
+                        )
+                        return result
+
+                    callback = callback_with_prefetch
+
+            try:
+                res = minimize(
+                    self.optimized_object.objective,
+                    x0_normalized,
+                    method="SLSQP",
+                    jac=jac,
+                    constraints=constraints,
+                    bounds=bounds,
+                    options=options,
+                    callback=callback,
+                )
+            finally:
+                if parallel_fd is not None:
+                    parallel_fd.close()
             
             logger.info(f"SLSQP finished at {sim_start_time} with status {res.status}")
             logger.info(f"SLSQP duration {time.time() - sim_start_time}")

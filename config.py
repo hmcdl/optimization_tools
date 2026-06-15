@@ -16,6 +16,13 @@ class OptimizationConfig:
     
     # Параметры выполнения
     num_proc: int = 1
+    # None -> enable when num_proc > 1; set False for cheap nested optimizers.
+    parallel_fd: Optional[bool] = None
+    # When False, FD stencil points use main-thread solve() only.
+    # Wing coupled opt enables workers by default when num_proc > 1.
+    parallel_fd_workers: bool = False
+    # Extra parallel Nastran in SLSQP callback; usually redundant with jac prefill.
+    prefetch_fd_in_callback: bool = False
     single_fem_task_timeout: float = 300.0
     max_iter: int = 100
     seed: dict = None
