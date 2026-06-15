@@ -21,6 +21,7 @@ from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer, 
 
 from .. import opt_tools_settings
 from ..parallel_fd import ParallelFiniteDifferences, clip_to_bounds
+from ..utils import constraints_are_satisfied
 # print(f"MAX_ITER {get_max_iter()}")
 
 class OptimizationTaskWithNormalization(AbstractOptimizationTask):
@@ -119,6 +120,43 @@ class GradientOptimizer(AbstractOPtimizer):
         if self.config.parallel_fd is not None:
             return bool(self.config.parallel_fd)
         return True
+
+    def _find_last_feasible_history_point(self) -> dict | None:
+        limits = self.optimized_object.opt_conditions.constraints
+        for history_point in reversed(self.history):
+            if constraints_are_satisfied(history_point.get("constraints"), limits):
+                return history_point
+        return None
+
+    def _apply_history_point(self, history_point: dict) -> tuple[dict, dict, float]:
+        vars_dict = history_point["vars"]
+        vars_list = [
+            vars_dict[self.optimized_object.conversion_map[i]]
+            for i in range(len(self.optimized_object.conversion_map))
+        ]
+        self.optimized_object.x_to_model(
+            self.optimized_object.model,
+            vars_list,
+            self.optimized_object.conversion_map,
+        )
+
+        result_vars_map = {
+            var: getattr(self.optimized_object.model, var)
+            for var in self.optimized_object.opt_conditions.vars
+        }
+        constraint_values = history_point["constraints"]
+        final_constraints = {
+            constraint_name: constraint_values[constraint_name]
+            for constraint_name in self.optimized_object.opt_conditions.constraints
+        }
+        objective = constraint_values.get("objective")
+        if objective is None:
+            objective = self.optimized_object.solver.solve(
+                self.optimized_object.model,
+                self.optimized_object.unique_id,
+                "objective",
+            )
+        return result_vars_map, final_constraints, objective
 
     def callback(self, x):
         if len(self.history)  == 4:
@@ -249,6 +287,29 @@ class GradientOptimizer(AbstractOPtimizer):
                 else:
                     constraint = self.optimized_object.cons[i]['fun'](res.x)
                 final_constraints[constraint_name] = constraint
+
+            if self.config.avoid_constraints_violations:
+                limits = self.optimized_object.opt_conditions.constraints
+                if not constraints_are_satisfied(final_constraints, limits):
+                    logger.warning(
+                        "%s Final point violates constraints, searching history for last feasible point",
+                        self.optimized_object.unique_id,
+                    )
+                    fallback_point = self._find_last_feasible_history_point()
+                    if fallback_point is not None:
+                        logger.info(
+                            "%s Using feasible point from optimization history instead of final SLSQP result",
+                            self.optimized_object.unique_id,
+                        )
+                        result_vars_map, final_constraints, objective = self._apply_history_point(
+                            fallback_point
+                        )
+                    else:
+                        logger.warning(
+                            "%s avoid_constraints_violations is enabled but no feasible point found in history",
+                            self.optimized_object.unique_id,
+                        )
+
             logger.info(f"MAX_ITER {opt_tools_settings.get(self.config.max_iter)}")
             logger.info(f"Optimization duration {time.time() - time_start}")
             logger.info("Result variables:")

@@ -23,6 +23,8 @@ class OptimizationConfig:
     parallel_fd_workers: bool = False
     # Extra parallel Nastran in SLSQP callback; usually redundant with jac prefill.
     prefetch_fd_in_callback: bool = False
+    # If True, fall back to the last feasible point from optimization history.
+    avoid_constraints_violations: bool = False
     single_fem_task_timeout: float = 300.0
     max_iter: int = 100
     seed: dict = None

@@ -1,6 +1,19 @@
 import logging
 import os
 import shutil
+from typing import Dict, Optional
+
+
+def constraints_are_satisfied(constr_values: Optional[Dict], limits: Dict) -> bool:
+    """Check whether optimization constraints are satisfied (1% tolerance on limits)."""
+    if constr_values is None:
+        return False
+    for key, val in constr_values.items():
+        if key in limits:
+            limit = limits[key]
+            if val - limit < -abs(0.01 * limit):
+                return False
+    return True
 
 
 def change_by_coeff(cur_val, min_val, max_val, factor, dempher):

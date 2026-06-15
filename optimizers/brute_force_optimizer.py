@@ -13,7 +13,7 @@ from optimization_tools.optimization_executors import ForLoopExecutor
 from optimization_tools.opt_conditions import OptimizationTaskResults
 from optimization_tools.optimization_executors import AbstractExecutor
 from optimization_tools.optimizers.abstract_optimizer import AbstractOPtimizer
-from optimization_tools.utils import iterate
+from optimization_tools.utils import iterate, constraints_are_satisfied
 from optimization_tools.simple_optimization_task import OptimizationTaskWithInnerOptimizer
 from optimization_tools.mapping_utils import ParameterMapper  # Новый импорт
 
@@ -199,17 +199,7 @@ class BruteForceOptimizer(AbstractOPtimizer):
             if result is None or result.constr_values is None:
                 continue
                 
-            all_satisfied = True
-            point_constraints = result.constr_values
-            
-            for key, val in point_constraints.items():
-                if key in self.optimized_object.opt_conditions.constraints:
-                    limit = self.optimized_object.opt_conditions.constraints[key]
-                    if val - limit < -abs(0.01 * limit):
-                        all_satisfied = False
-                        break
-            
-            if all_satisfied:
+            if constraints_are_satisfied(result.constr_values, self.optimized_object.opt_conditions.constraints):
                 # Получаем код для этой точки
                 params_dict = self._get_params_dict_from_point(all_points[i])
                 point_code = self.param_mapper.get_or_create_code(params_dict)
