@@ -72,13 +72,13 @@ class BruteForceOptimizer(AbstractOPtimizer):
         
         os.makedirs(this_log_dir, exist_ok=True)
         this_log_file = os.path.join(this_log_dir, self.optimized_object.unique_id)
-        filehandler = logging.FileHandler(filename=this_log_file, encoding='utf-8', mode="w")
-        filehandler.setLevel(logging.DEBUG)
-        logger.addHandler(filehandler)
-        logger.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        filehandler.setFormatter(formatter)
-        logger.log(logging.DEBUG, "BruteForce optimization started")
+        # filehandler = logging.FileHandler(filename=this_log_file, encoding='utf-8', mode="w")
+        # filehandler.setLevel(logging.DEBUG)
+        # logger.addHandler(filehandler)
+        # logger.setLevel(logging.DEBUG)
+        # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # filehandler.setFormatter(formatter)
+        # logger.log(logging.DEBUG, "BruteForce optimization started")
         time_start = time.time()
 
         # Инициализируем маппер

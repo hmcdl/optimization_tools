@@ -18,6 +18,7 @@ from optimization_tools.optimizers.gradient_optimizer import (
 )
 from optimization_tools.parallel_fd import (
     ParallelFiniteDifferences,
+    _approx_grad,
     _dedupe_points,
     _invalidate_task_eval_cache,
     clip_to_bounds,
@@ -372,6 +373,56 @@ class TestParallelFDEvalCache(unittest.TestCase):
             fd._fd_cache_map[center_signature],
             task.solver.cache_map[center_signature],
         )
+
+    def test_batched_constraint_jac_matches_scalar_fd(self):
+        task = self._make_task(num_proc=1)
+        task.objective(self.x0)
+        fd = ParallelFiniteDifferences(task, task.config, 0.01, self.bounds)
+        fd.prefill(self.x0)
+        scalar_rows = []
+        for index in range(len(task.cons)):
+            constraint_fun = fd._constraint_fun(index)
+            f0 = float(constraint_fun(self.x0))
+            scalar_rows.append(
+                _approx_grad(
+                    constraint_fun,
+                    self.x0,
+                    fd.rel_step,
+                    f0,
+                    self.bounds,
+                )
+            )
+        fd._invalidate_jacobian_memo()
+        fd._ensure_jacobians_built(self.x0)
+        assert fd._constraint_jac is not None
+        np.testing.assert_allclose(
+            fd._constraint_jac,
+            np.vstack(scalar_rows),
+            rtol=1e-9,
+            atol=1e-9,
+        )
+
+    def test_batched_jacobian_memo_reused_for_all_constraints(self):
+        task = self._make_task(num_proc=1)
+        task.objective(self.x0)
+        fd = ParallelFiniteDifferences(task, task.config, 0.01, self.bounds)
+        fd.prefill(self.x0)
+        build_calls = 0
+        original_build = fd._ensure_jacobians_built
+
+        def counting_build(x_arr):
+            nonlocal build_calls
+            key = tuple(np.round(x_arr, 12))
+            if key != fd._jac_center_key:
+                build_calls += 1
+            return original_build(x_arr)
+
+        fd._ensure_jacobians_built = counting_build
+        jacs = [fd.make_constraint_jac(index)(self.x0) for index in range(len(task.cons))]
+        self.assertEqual(build_calls, 1)
+        self.assertEqual(len(jacs), 2)
+        for jac in jacs:
+            self.assertEqual(jac.shape, (2,))
 
 
 if __name__ == "__main__":
