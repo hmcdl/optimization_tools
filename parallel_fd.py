@@ -46,6 +46,59 @@ def model_at_x_norm(ctx: FDEvaluationContext, x_norm: np.ndarray) -> Any:
     return inner_model
 
 
+def _normalize_level2_changed_vars(solve_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    changed = solve_kwargs.get("level2_changed_vars")
+    if changed is None:
+        return solve_kwargs
+    normalized = dict(solve_kwargs)
+    normalized["level2_changed_vars"] = set(changed)
+    return normalized
+
+
+def _fd_solve_context(opt_task: Any, x_norm: np.ndarray | None) -> Tuple[Dict[str, Any], Any]:
+    solve_kwargs: Dict[str, Any] = {}
+    if x_norm is not None:
+        kwargs_fn = getattr(opt_task, "fd_solve_kwargs_for_x_norm", None)
+        if callable(kwargs_fn):
+            solve_kwargs = dict(kwargs_fn(np.asarray(x_norm, dtype=float)))
+    baseline_payload = None
+    baseline_fn = getattr(opt_task, "level2_baseline_payload_for_fd", None)
+    if callable(baseline_fn):
+        baseline_payload = baseline_fn()
+    return _normalize_level2_changed_vars(solve_kwargs), baseline_payload
+
+
+def _apply_level2_baseline_payload(solver: Any, baseline_payload: Any) -> None:
+    if baseline_payload is None:
+        return
+    apply_fn = getattr(solver, "apply_level2_baseline_payload", None)
+    if callable(apply_fn):
+        apply_fn(baseline_payload)
+
+
+def _solver_solve_for_fd(
+    opt_task: Any,
+    solver: Any,
+    model: Any,
+    x_norm: np.ndarray | None,
+) -> Dict[str, Any]:
+    solve_kwargs, baseline_payload = _fd_solve_context(opt_task, x_norm)
+    _apply_level2_baseline_payload(solver, baseline_payload)
+    unique_id = getattr(opt_task, "unique_id", "")
+    return solver.solve(model, unique_id, res_type=None, **solve_kwargs)
+
+
+def _make_fd_job(opt_task: Any, x_norm: np.ndarray) -> Tuple[List[float], Dict[str, Any], Any]:
+    solve_kwargs, baseline_payload = _fd_solve_context(opt_task, x_norm)
+    return (np.asarray(x_norm, dtype=float).tolist(), solve_kwargs, baseline_payload)
+
+
+def _maybe_capture_level2_baseline(opt_task: Any, x_norm: np.ndarray) -> None:
+    capture_fn = getattr(opt_task, "maybe_capture_level2_baseline_for_x_norm", None)
+    if callable(capture_fn):
+        capture_fn(np.asarray(x_norm, dtype=float))
+
+
 def _process_worker_init(
     payloads_bytes: bytes,
     slot_counter: Any,
@@ -60,18 +113,21 @@ def _process_worker_init(
     _PROCESS_SOLVER, _PROCESS_CTX = payloads[slot]
 
 
-def _process_eval_job(job: Tuple[List[float], ...]) -> Tuple[Any, Dict[str, Any]]:
+def _process_eval_job(job: Tuple[Any, ...]) -> Tuple[Any, Dict[str, Any]]:
     if _PROCESS_SOLVER is None or _PROCESS_CTX is None:
         raise RuntimeError("FD process worker is not initialized")
     x_norm_list = job[0]
+    solve_kwargs = job[1] if len(job) > 1 else {}
+    baseline_payload = job[2] if len(job) > 2 else None
     x_norm = np.asarray(x_norm_list, dtype=float)
     model = model_at_x_norm(_PROCESS_CTX, x_norm)
     signature = model.signature()
-    # Match main-thread serial FD: solve() with the task unique_id.
+    _apply_level2_baseline_payload(_PROCESS_SOLVER, baseline_payload)
     results = _PROCESS_SOLVER.solve(
         model,
         _PROCESS_CTX.unique_id,
         res_type=None,
+        **_normalize_level2_changed_vars(solve_kwargs),
     )
     return signature, results
 
@@ -90,6 +146,28 @@ def _approx_grad(fun, x_arr: np.ndarray, rel_step: float, f0: float, bounds) -> 
     else:
         grad = result
     return np.atleast_1d(np.asarray(grad, dtype=float))
+
+
+def _approx_jac(
+    fun,
+    x_arr: np.ndarray,
+    rel_step: float,
+    f0: np.ndarray,
+    bounds,
+) -> np.ndarray:
+    result = approx_derivative(
+        fun,
+        x_arr,
+        method="3-point",
+        rel_step=rel_step,
+        f0=f0,
+        bounds=_bounds_tuple(bounds),
+    )
+    if isinstance(result, tuple):
+        jac = result[0]
+    else:
+        jac = result
+    return np.atleast_2d(np.asarray(jac, dtype=float))
 
 
 def _bounds_tuple(bounds: Bounds | Tuple[np.ndarray, np.ndarray] | None) -> Tuple[np.ndarray, np.ndarray] | None:
@@ -187,6 +265,10 @@ class ParallelFiniteDifferences:
         self._prefill_lock = threading.Lock()
         self._prefill_memo_key: Tuple[float, ...] | None = None
         self._fd_cache_map: Dict[Any, Dict[str, Any]] = {}
+        self._jac_center_key: Tuple[float, ...] | None = None
+        self._objective_grad: np.ndarray | None = None
+        self._constraint_jac: np.ndarray | None = None
+        self._last_prefill_points: List[np.ndarray] = []
         self._ctx = self._build_context()
 
     def _build_context(self) -> FDEvaluationContext:
@@ -266,10 +348,13 @@ class ParallelFiniteDifferences:
                 return
             self._prefill_memo_key = key
             self._fd_cache_map.clear()
+            self._invalidate_jacobian_memo()
         points = _dedupe_points(
             [x_arr] + collect_fd_stencil_points(x_arr, self.rel_step, self.bounds)
         )
         self._prefill_points(points, x_arr)
+        self._last_prefill_points = [np.asarray(point, dtype=float).copy() for point in points]
+        self._maybe_validate_prefilled_stencils(x_arr, points)
 
     def _prefill_points(
         self,
@@ -297,7 +382,7 @@ class ParallelFiniteDifferences:
                     for point in missing:
                         self._eval_and_cache_on_main(point)
                 else:
-                    jobs = [(point.tolist(),) for point in missing]
+                    jobs = [_make_fd_job(self.opt_task, point) for point in missing]
                     started = time.perf_counter()
                     for point, (signature, results) in zip(
                         missing,
@@ -321,48 +406,157 @@ class ParallelFiniteDifferences:
                 )
         _invalidate_task_eval_cache(self.opt_task)
 
+    def _maybe_validate_prefilled_stencils(
+        self,
+        center: np.ndarray,
+        points: List[np.ndarray],
+    ) -> None:
+        validate = getattr(self.opt_task, "validate_and_retry_fd_stencils", None)
+        if not callable(validate):
+            return
+
+        entries: List[Dict[str, Any]] = []
+        for point in points:
+            point_arr = np.asarray(point, dtype=float)
+            model = model_at_x_norm(self._ctx, point_arr)
+            results = self._lookup_results(model, point_arr)
+            entries.append({
+                "x_norm": point_arr.tolist(),
+                "results": results,
+            })
+
+        updates = validate(np.asarray(center, dtype=float), entries)
+        if not updates:
+            return
+
+        for update in updates:
+            point_arr = np.asarray(update["x_norm"], dtype=float)
+            model = model_at_x_norm(self._ctx, point_arr)
+            self._fd_cache_map[model.signature()] = update["results"]
+
+        _invalidate_task_eval_cache(self.opt_task)
+        self._invalidate_jacobian_memo()
+
     def _anchor_center_from_main_cache(self, center: np.ndarray) -> None:
         """FD center uses main-thread cache; avoid a second Nastran run after worker prefill."""
-        model = model_at_x_norm(self._ctx, np.asarray(center, dtype=float))
+        center_arr = np.asarray(center, dtype=float)
+        model = model_at_x_norm(self._ctx, center_arr)
         signature = model.signature()
         main_cache = self.opt_task.solver.cache_map
         if signature in main_cache:
             self._fd_cache_map[signature] = main_cache[signature]
-            return
-        results = self.opt_task.solver.solve(
-            model,
-            self._ctx.unique_id,
-            res_type=None,
-        )
-        self._fd_cache_map[signature] = results
-        _log_fd_design_point(self.opt_task, center, results)
+        else:
+            results = _solver_solve_for_fd(
+                self.opt_task,
+                self.opt_task.solver,
+                model,
+                center_arr,
+            )
+            self._fd_cache_map[signature] = results
+            _log_fd_design_point(self.opt_task, center_arr, results)
+        _maybe_capture_level2_baseline(self.opt_task, center_arr)
 
     def _eval_and_cache_on_main(self, x_norm: np.ndarray) -> None:
         """Match serial scipy FD: main-thread solve() with the task unique_id."""
-        model = model_at_x_norm(self._ctx, np.asarray(x_norm, dtype=float))
+        x_arr = np.asarray(x_norm, dtype=float)
+        model = model_at_x_norm(self._ctx, x_arr)
         signature = model.signature()
         if signature in self._fd_cache_map:
             return
-        results = self.opt_task.solver.solve(
+        results = _solver_solve_for_fd(
+            self.opt_task,
+            self.opt_task.solver,
             model,
-            self._ctx.unique_id,
-            res_type=None,
+            x_arr,
         )
         self._fd_cache_map[signature] = results
-        _log_fd_design_point(self.opt_task, x_norm, results)
+        _log_fd_design_point(self.opt_task, x_arr, results)
 
     def _lookup_results(self, model: Any, x_norm: np.ndarray | None = None) -> Dict[str, Any]:
         signature = model.signature()
         if signature in self._fd_cache_map:
             return self._fd_cache_map[signature]
-        results = self.opt_task.solver.solve(
+        results = _solver_solve_for_fd(
+            self.opt_task,
+            self.opt_task.solver,
             model,
-            self._ctx.unique_id,
-            res_type=None,
+            x_norm,
         )
         if x_norm is not None:
             _log_fd_design_point(self.opt_task, x_norm, results)
         return results
+
+    def _invalidate_jacobian_memo(self) -> None:
+        self._jac_center_key = None
+        self._objective_grad = None
+        self._constraint_jac = None
+
+    def _constraint_specs(self) -> List[Tuple[str | None, float | None]]:
+        specs: List[Tuple[str | None, float | None]] = []
+        for constraint in self.opt_task.cons:
+            raw_fun = constraint["fun"]
+            specs.append((
+                getattr(raw_fun, "parameter", None),
+                getattr(raw_fun, "limit", None),
+            ))
+        return specs
+
+    @staticmethod
+    def _normalized_constraint_value(value: float, limit: float | None) -> float:
+        if limit not in (None, 0):
+            return value / float(limit) - 1.0
+        return value
+
+    def _results_at_x_norm(self, x_norm: np.ndarray) -> Dict[str, Any]:
+        x_arr = np.asarray(x_norm, dtype=float)
+        model = model_at_x_norm(self._ctx, x_arr)
+        return self._lookup_results(model, x_arr)
+
+    def _constraint_vector_at(self, x_norm: np.ndarray) -> np.ndarray:
+        results = self._results_at_x_norm(x_norm)
+        values: List[float] = []
+        for parameter, limit in self._constraint_specs():
+            if parameter is None:
+                raise RuntimeError("Batched constraint Jacobian requires constraint parameters")
+            values.append(
+                self._normalized_constraint_value(
+                    float(results[parameter]),
+                    limit,
+                )
+            )
+        return np.asarray(values, dtype=float)
+
+    def _ensure_jacobians_built(self, x_arr: np.ndarray) -> None:
+        key = tuple(np.round(x_arr, 12))
+        if key == self._jac_center_key:
+            return
+        self.prefill(x_arr)
+        objective_f0 = self._objective_fun(x_arr)
+        self._objective_grad = _approx_grad(
+            self._objective_fun,
+            x_arr,
+            self.rel_step,
+            objective_f0,
+            self.bounds,
+        )
+        constraint_specs = self._constraint_specs()
+        if constraint_specs:
+            constraint_f0 = self._constraint_vector_at(x_arr)
+            self._constraint_jac = _approx_jac(
+                self._constraint_vector_at,
+                x_arr,
+                self.rel_step,
+                constraint_f0,
+                self.bounds,
+            )
+        else:
+            self._constraint_jac = np.zeros((0, x_arr.size), dtype=float)
+        self._jac_center_key = key
+        logger.info(
+            "parallel FD jacobians: n=%s m=%s built",
+            x_arr.size,
+            0 if self._constraint_jac is None else self._constraint_jac.shape[0],
+        )
 
     def _objective_fun(self, x_norm: np.ndarray) -> float:
         x_arr = np.asarray(x_norm, dtype=float)
@@ -389,18 +583,16 @@ class ParallelFiniteDifferences:
 
     def objective_jac(self, x_norm: np.ndarray) -> np.ndarray:
         x_arr = clip_to_bounds(np.asarray(x_norm, dtype=float), self.bounds)
-        self.prefill(x_arr)
-        f0 = self._objective_fun(x_arr)
-        return _approx_grad(self._objective_fun, x_arr, self.rel_step, f0, self.bounds)
+        self._ensure_jacobians_built(x_arr)
+        assert self._objective_grad is not None
+        return self._objective_grad.copy()
 
     def make_constraint_jac(self, constraint_index: int) -> Callable[[np.ndarray], np.ndarray]:
-        constraint_fun = self._constraint_fun(constraint_index)
-
         def jac(x_norm: np.ndarray) -> np.ndarray:
             x_arr = clip_to_bounds(np.asarray(x_norm, dtype=float), self.bounds)
-            self.prefill(x_arr)
-            f0 = float(constraint_fun(x_arr))
-            return _approx_grad(constraint_fun, x_arr, self.rel_step, f0, self.bounds)
+            self._ensure_jacobians_built(x_arr)
+            assert self._constraint_jac is not None
+            return self._constraint_jac[constraint_index, :].copy()
 
         return jac
 

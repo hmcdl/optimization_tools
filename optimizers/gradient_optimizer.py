@@ -115,6 +115,8 @@ class GradientOptimizer(AbstractOPtimizer):
         self.history: list[dict] = []
 
     def _use_parallel_fd(self) -> bool:
+        if bool(self.config.extra.get("sensitivity_stencil_validation", False)):
+            return True
         if self.config.num_proc <= 1:
             return False
         if self.config.parallel_fd is not None:
