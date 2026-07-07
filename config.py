@@ -52,7 +52,7 @@ class OptimizationConfig:
     def __post_init__(self):
         """Создаем директории при инициализации"""
         os.makedirs(self.logging_dir, exist_ok=True)
-        os.makedirs(self.calculation_dir, exist_ok=True)
+        # os.makedirs(self.calculation_dir, exist_ok=True)
     
     def get_logging_dir(self, custom_dir: Optional[str] = None) -> str:
         """Получить директорию для логирования"""
