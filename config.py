@@ -27,6 +27,7 @@ class OptimizationConfig:
     avoid_constraints_violations: bool = False
     single_fem_task_timeout: float = 300.0
     max_iter: int = 100
+    finite_diff_rel_step: float = None
     seed: dict = None
     
     # Флаги

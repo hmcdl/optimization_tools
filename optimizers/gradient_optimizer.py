@@ -130,6 +130,28 @@ class GradientOptimizer(AbstractOPtimizer):
                 return history_point
         return None
 
+    def _find_best_feasible_history_point(self) -> dict | None:
+        limits = self.optimized_object.opt_conditions.constraints
+        best_point = None
+        best_objective = float("inf")
+
+        for history_point in self.history:
+            constraints = history_point.get("constraints")
+            if not constraints_are_satisfied(constraints, limits):
+                continue
+
+            objective = constraints.get("objective")
+            if objective is None:
+                objective = constraints.get("mass")
+            if objective is None:
+                continue
+
+            if objective < best_objective:
+                best_objective = objective
+                best_point = history_point
+
+        return best_point
+
     def _apply_history_point(self, history_point: dict) -> tuple[dict, dict, float]:
         vars_dict = history_point["vars"]
         vars_list = [
@@ -176,8 +198,8 @@ class GradientOptimizer(AbstractOPtimizer):
         options = {
             'maxiter': self.config.max_iter, 
             'disp': False, 
-            "finite_diff_rel_step": 0.01,
-            'ftol': 1e-6
+            "finite_diff_rel_step": kwargs.get("finite_diff_rel_step", 0.01),
+            'ftol': kwargs.get("ftol", 1e-5)
         }
         try:
             self.optimized_object.update_opt_vars()
@@ -223,9 +245,11 @@ class GradientOptimizer(AbstractOPtimizer):
             self.optimized_object.cost_function_normalization = cost_fun_coeff if cost_fun_coeff != 0 else 1
             sim_start_time = time.time()
             logger.info(json.dumps(self.optimized_object.opt_conditions.vars))
+            logger.info(f"finite_diff_rel_step {options.get("finite_diff_rel_step")}")
+            logger.info(f"ftol {options.get('ftol')}")
             logger.info(f"SLSQP started at {sim_start_time}")
 
-            finite_diff_rel_step = options.get("finite_diff_rel_step", 0.01)
+            finite_diff_rel_step = options.get("finite_diff_rel_step")
             jac = "3-point"
             constraints = self.optimized_object.cons
             callback = self.callback
@@ -297,7 +321,9 @@ class GradientOptimizer(AbstractOPtimizer):
                         "%s Final point violates constraints, searching history for last feasible point",
                         self.optimized_object.unique_id,
                     )
-                    fallback_point = self._find_last_feasible_history_point()
+                    # fallback_point = self._find_last_feasible_history_point()
+                    fallback_point = self._find_best_feasible_history_point()
+
                     if fallback_point is not None:
                         logger.info(
                             "%s Using feasible point from optimization history instead of final SLSQP result",

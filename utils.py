@@ -11,7 +11,7 @@ def constraints_are_satisfied(constr_values: Optional[Dict], limits: Dict) -> bo
     for key, val in constr_values.items():
         if key in limits:
             limit = limits[key]
-            if val - limit < -abs(0.01 * limit):
+            if val - limit < -abs(0.0001 * limit):
                 return False
     return True
 
